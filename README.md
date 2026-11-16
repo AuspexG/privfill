@@ -80,6 +80,7 @@ privfill.py add <item>                 enter one free-text item
 privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
+privfill.py verify                     check the activity log
 privfill.py protocol                   print the entry protocol summary
 ```
 
@@ -119,6 +120,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `filling.py` | placeholders, formats and the file types they are filled in |
 | `texts.py` | the usage text and the form's strings in each language |
 | `packing.py` | bundling files into a zip archive |
+| `activity.py` | the value-free, hash-chained activity log |
 | `atomic.py` | writing or replacing a file in one step |
 
 Commands reach items only through a `Store`, so another way of keeping them needs a new backend in `store.py` and nothing else.

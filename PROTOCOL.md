@@ -124,6 +124,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill render <master> <output>` | Copy the master to the output path and fill it; the master stays untouched. |
 | `privfill fill <file>...` | Fill in place. This destroys the master, so use it only on throwaway copies. |
 | `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
+| `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
 
 ### 4.1 Exit codes
 
@@ -153,6 +154,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `render` | `used`: `{item name: count}` |
 | `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
+| `verify` | `intact`, `records` |
 
 `status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the data file.
 
@@ -191,3 +193,13 @@ It does not guarantee:
 ## 7. Versioning
 
 The protocol version is an integer. Adding optional keys or new types does not change it; changing the meaning of an existing key or removing one does. The program rejects versions it does not support.
+
+## 8. Activity log
+
+Every command that changes something appends one record to `activity.log` in the same protected directory as the data file: `form` and `add` (item names with `created`, `updated` or `unchanged`), `render` and `pack` (item names with the number of times each was used, in the file content and in the paths), and `fill` (one record per file actually filled). A command that fails appends nothing, except that `fill` still records the files it did fill before a later file failed. Reading commands (`keys`, `protocol`, `verify`, `init`) append nothing.
+
+A record is one JSON line: `seq`, `time` (UTC), `command`, `items`, `master` (SHA-256 of the master's content before filling, or null), `prev` (hash of the previous record) and `hash`. It holds no value and no path, and files are never named. `privfill verify` recomputes the chain, so an edited, deleted or reordered record is reported by its position.
+
+Growth is bounded. A log file that reaches 1 MiB becomes `activity.log.1`, the earlier ones shift up, and only five files are kept (about 5 MiB); the oldest records are then dropped. The chain runs across the files and verification starts from the oldest record still kept. `activity.log.lock` is an empty file used so that two commands at once cannot fork the chain.
+
+It does not detect removal of the newest records, or of everything, since the chain has no outside anchor; and anyone who can write to the directory can rewrite the whole chain. Run `privfill verify` and keep a note of the record count if that matters.

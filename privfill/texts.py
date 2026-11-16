@@ -18,6 +18,7 @@ ever contains a value.
   privfill.py fill <file>...             fill files in place
   privfill.py pack <archive> <file>...   bundle files into a zip archive
                                          (every path may contain placeholders)
+  privfill.py verify                     check the activity log was not altered
 
 Put --json before the subcommand for a single JSON object as output.
 Placeholders: {{item}}, {{item|YYYY/MM/DD}}, {{item|last4}}, {{item|first6}}

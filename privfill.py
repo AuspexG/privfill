@@ -89,7 +89,7 @@ UI = {
     "foot_required": ("{n} items, {r} required", "共 {n} 项，其中 {r} 项必填"),
     "foot_keys": ("Enter saves, Esc cancels", "回车保存，Esc 取消"),
     "bad_required": ("This one is required.", "这一项必填。"),
-    "bad_date": ("Could not read this date. Write it like 2005-03-04 or March 4 2005 as 2005/3/4.",
+    "bad_date": ("Could not read this date. Write it with digits, like 2005-03-04 or 2005/3/4.",
                  "没看懂这个日期，请写成类似 2005年3月4日 或 2005-03-04。"),
     "bad_date_invalid": ("This date does not exist. Check the year, month and day.", "这个日期不存在，请核对年月日。"),
     "bad_phone": ("A phone number should contain only digits (7 to 15 of them).", "电话号码里应该只有数字（7 到 15 位），请核对。"),

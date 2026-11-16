@@ -119,6 +119,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `filling.py` | placeholders, formats and the file types they are filled in |
 | `texts.py` | the usage text and the form's strings in each language |
 | `atomic.py` | replacing a file in one step |
+| `hardening.py` | no core dumps, process not inspectable (see `PROTOCOL.md` 6.1) |
 
 Commands reach items only through a `Store`, so another way of keeping them needs a new backend in `store.py` and nothing else.
 
@@ -128,7 +129,7 @@ Commands reach items only through a `Store`, so another way of keeping them need
 python3 -m unittest discover -s tests
 ```
 
-The tests use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`.
+The tests use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`. `tests/test_no_value_escapes.py` feeds every command hostile input and checks that no fragment of a value is printed; a new command must be listed in `COMMANDS` in `privfill/cli.py` and given scenarios in that test file, or the suite fails.
 
 ## License
 

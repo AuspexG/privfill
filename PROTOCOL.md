@@ -188,6 +188,29 @@ It does not guarantee:
 - Where outputs go. Outputs are plain text.
 - Encryption at rest. The data file is plain text with mode 600, which keeps out other system users, not other programs running as the same user.
 
+### 6.1 The process
+
+At startup the program disables core dumps and, on Linux, marks itself non-dumpable, so that another process of the same user cannot attach a debugger to it or read its memory through `/proc`. Root still can.
+
+| Platform | Core dumps | Non-dumpable |
+|---|---|---|
+| Linux | disabled | yes |
+| macOS and other POSIX systems | disabled | not available; skipped |
+| Windows | not available; skipped | not available; skipped |
+
+A step that is unavailable or refused is skipped without a message and the command runs as usual: these are extra barriers, and the guarantee about output does not depend on them.
+
+### 6.2 Output on failure
+
+No value appears in standard output, standard error or the JSON object, on failures as on success:
+
+- Files are referred to by index, never by name.
+- The program's own messages (an invalid protocol, an answer the form refused, a file that cannot be packed) are fixed texts that quote only what the caller wrote in the protocol.
+- A missing item or an unusable format is reported with the text of the placeholder, unless that text resembles a stored value, as it does when an output is filled a second time. It is then replaced by `(not shown: it may hold a value)`.
+- Any other error, expected or not, is reported by its type and never by its message; one the program did not expect reads `Failed: unexpected error (<type>)`, exit code 1. An interrupt (Ctrl-C) ends the command the same way, with no traceback.
+
+A name in the first column of a data file edited by hand is an item name and is printed as one. This is checked by `tests/test_no_value_escapes.py`, which gives every command corrupted and hostile input and searches the output for any four-character fragment of a stored value.
+
 ## 7. Versioning
 
 The protocol version is an integer. Adding optional keys or new types does not change it; changing the meaning of an existing key or removing one does. The program rejects versions it does not support.

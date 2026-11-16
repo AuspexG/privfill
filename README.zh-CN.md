@@ -117,6 +117,7 @@ privfill.py protocol                   打印录入协议摘要
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
 | `texts.py` | 用法说明和表单各语言的文字 |
 | `atomic.py` | 一步替换文件 |
+| `hardening.py` | 禁用核心转储，使进程不可被检查（见 `PROTOCOL.md` 6.1） |
 
 命令只通过 `Store` 接触个人信息，所以换一种保存方式只需要在 `store.py` 里加一个后端。
 
@@ -126,7 +127,7 @@ privfill.py protocol                   打印录入协议摘要
 python3 -m unittest discover -s tests
 ```
 
-测试全部使用临时目录里的假数据，不会弹出窗口。`tests/test_store_seam.py` 用一个放在内存里的 `Store` 来运行各个命令。
+测试全部使用临时目录里的假数据，不会弹出窗口。`tests/test_store_seam.py` 用一个放在内存里的 `Store` 来运行各个命令。`tests/test_no_value_escapes.py` 向每个命令输入恶意或损坏的内容，并检查输出中没有任何内容片段；新增命令必须列入 `privfill/cli.py` 的 `COMMANDS` 并在该测试中添加场景，否则测试失败。
 
 ## 许可
 

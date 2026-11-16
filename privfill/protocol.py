@@ -52,12 +52,17 @@ Rules:
 def parse_spec(text):
     """Validate an entry protocol. Returns (spec, None) or (None, reason)."""
     if os.path.isfile(text):
-        with open(text, encoding="utf8") as f:
-            text = f.read()
+        try:
+            with open(text, encoding="utf8") as f:
+                text = f.read()
+        except (OSError, ValueError) as e:
+            return None, f"the protocol file could not be read ({type(e).__name__})"
     try:
         spec = json.loads(text)
-    except ValueError as e:
-        return None, f"the protocol is not valid JSON ({e})"
+    except json.JSONDecodeError as e:  # say where, without quoting the decoder or the text
+        return None, f"the protocol is not valid JSON (line {e.lineno}, column {e.colno})"
+    except ValueError:
+        return None, "the protocol is not valid JSON"
     if not isinstance(spec, dict) or not isinstance(spec.get("fields"), list) or not spec["fields"]:
         return None, "the protocol must be an object with a non-empty 'fields' array"
     if spec.get("protocol", PROTOCOL_VERSION) != PROTOCOL_VERSION:

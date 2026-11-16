@@ -8,6 +8,7 @@ import shutil
 from . import __version__
 from .filling import Missing, fill_file, sub
 from .form import run_form
+from .hardening import harden
 from .normalize import NORMS, Bad
 from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
@@ -15,6 +16,11 @@ from .store import default_store
 from .texts import USAGE
 
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
+# Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
+# command that has no hostile-input scenarios: add a command in both places.
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack")
+FRAGMENT = 4  # this many characters of a value in a row are treated as the value
+ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
 
 
@@ -61,6 +67,28 @@ def cmd_form(spec, store):
     return rc
 
 
+def letters(text):
+    """text reduced to its letters and digits, so that spacing, case and punctuation do not hide a match."""
+    return "".join(c for c in text.casefold() if c.isalnum())
+
+
+def resembles_a_value(text, store):
+    """Whether text copied from a document could be, or contain part of, a stored value."""
+    if len(text) > 60 or not text.isprintable():
+        return True
+    t = letters(text)
+    for name in store.names():
+        v = letters(store.read(name) or "")
+        if v and (v == t or any(v[i:i + FRAGMENT] in t for i in range(len(v) - FRAGMENT + 1))):
+            return True
+    return False
+
+
+def missing(e, store):
+    """What to print for a Missing: its message, without document text that resembles a value."""
+    return e.describe(lambda text: not resembles_a_value(text, store))
+
+
 def used(counter):
     return ", ".join(f"{k} x{n}" for k, n in counter.items())
 
@@ -70,11 +98,14 @@ def available(store):
 
 
 def run_cmd(argv, store):
-    if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
+    cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
+    if cmd not in COMMANDS:
+        print("Unknown subcommand. Available: " + ", ".join(c for c in COMMANDS if c not in ("help", "version")) + ".")
+        return 1
+    if cmd == "help":
         print(USAGE)
         return 0
-    cmd = argv[1]
-    if cmd in ("--version", "version"):
+    if cmd == "version":
         print(f"privfill {__version__} (entry protocol v{PROTOCOL_VERSION})")
         RESULT.update(version=__version__, protocol=PROTOCOL_VERSION)
         return 0
@@ -113,7 +144,7 @@ def run_cmd(argv, store):
                 print(f"File {i}: " + (f"filled {used(c)}." if c else "no placeholders; left untouched."))
             except Missing as e:
                 RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
-                print(f"File {i}: failed, {e}; left untouched. {available(store)}")
+                print(f"File {i}: failed, {missing(e, store)}; left untouched. {available(store)}")
                 rc = 2
             except Exception as e:
                 RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
@@ -128,7 +159,7 @@ def run_cmd(argv, store):
         try:
             dst = sub(argv[3], store)
         except Missing as e:
-            print(f"Failed: {e}; nothing was written. {available(store)}")
+            print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
             return 2
         if os.path.abspath(dst) == os.path.abspath(src):
             print("Failed: the output path is the master itself; nothing was written.")
@@ -138,7 +169,7 @@ def run_cmd(argv, store):
             c = fill_file(dst, store)
         except Missing as e:
             os.unlink(dst)
-            print(f"Failed: {e}; nothing was written. {available(store)}")
+            print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
             return 2
         except Exception as e:
             if os.path.exists(dst) and os.path.abspath(dst) != os.path.abspath(src):
@@ -156,7 +187,7 @@ def run_cmd(argv, store):
         try:
             dst, *files = [sub(a, store, counter=counter) for a in argv[2:]]
         except Missing as e:
-            print(f"Failed: {e}; nothing was written. {available(store)}")
+            print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
             return 2
         try:
             pack(dst, files)
@@ -169,22 +200,37 @@ def run_cmd(argv, store):
         RESULT.update(packed=len(files), used=counter)
         print(f"Archive written with {len(files)} file(s); the files are untouched. Items used: {used(counter) or 'none'}.")
         return 0
-    print("Unknown subcommand. Available: init, keys, protocol, form, add, render, fill, pack.")
-    return 1
+    raise AssertionError("a command is listed in COMMANDS but not handled")
+
+
+def run_without_traceback(argv, store):
+    """run_cmd, with any error it did not expect reduced to its type name.
+
+    An exception's message or traceback can quote the data it was handling, so neither is ever
+    printed: this is what keeps a value out of the output on the paths nobody thought of.
+    The store is opened here too (store=None: the default one), so that failing is covered as well.
+    """
+    try:
+        return run_cmd(argv, default_store(argv[0]) if store is None else store)
+    except KeyboardInterrupt:
+        print("Interrupted; the command did not finish.")
+        return 1
+    except Exception as e:
+        print(f"Failed: unexpected error ({type(e).__name__}); see the exit code.")
+        return 1
 
 
 def main(argv, store=None):
     """Run one command. Items are read and written only through store (default: the data file)."""
-    if store is None:
-        store = default_store(argv[0])
+    harden()  # before anything personal is read
     RESULT.clear()
     if "--json" in argv[1:2]:
         argv = argv[:1] + argv[2:]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            code = run_cmd(argv, store)
+            code = run_without_traceback(argv, store)
         out = {"ok": code == 0, "code": code, "message": buf.getvalue().strip()}
         out.update(RESULT)
         print(json.dumps(out, ensure_ascii=False))
         return code
-    return run_cmd(argv, store)
+    return run_without_traceback(argv, store)

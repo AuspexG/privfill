@@ -20,6 +20,8 @@ def run_form(spec, data, store_label):
         if not os.environ.get("PRIVFILL_DATA"):
             raise RuntimeError("PRIVFILL_FORM_TEST requires PRIVFILL_DATA")
         answers, out = json.loads(test), {}
+        if answers is None:  # the person cancels
+            return None
         for f in spec["fields"]:
             raw = str(answers.get(f["name"], "")).strip()
             if raw:

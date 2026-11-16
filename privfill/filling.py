@@ -11,7 +11,23 @@ OFFICE = (".docx", ".xlsx", ".pptx")
 
 
 class Missing(Exception):
-    """A placeholder names an item the store does not have, or a format that does not apply."""
+    """A placeholder names an item the store does not have, or a format that does not apply.
+
+    The name or format was copied from a document, and a document that was filled before holds
+    values where it held placeholders. So that text is kept apart from the message: str() never
+    includes it, and describe() includes it only if the caller's check allows.
+    """
+
+    HIDDEN = "(not shown: it may hold a value)"
+
+    def __init__(self, reason, quoted):
+        """reason has one {} where quoted, the text copied from the document, belongs."""
+        super().__init__(reason.format(self.HIDDEN))
+        self.reason, self.quoted = reason, quoted
+
+    def describe(self, may_show):
+        """The message, quoting the document text only if may_show(text) is true."""
+        return self.reason.format(f"'{self.quoted}'" if may_show(self.quoted) else self.HIDDEN)
 
 
 def apply_format(value, fmt):
@@ -28,7 +44,7 @@ def apply_format(value, fmt):
         out = fmt.replace("YYYY", y).replace("MM", "\0").replace("DD", "\1")
         out = out.replace("M", str(int(mo))).replace("D", str(int(da)))
         return out.replace("\0", mo).replace("\1", da)
-    raise Missing(f"format '{fmt}' does not apply to this item (date formats need a date item)")
+    raise Missing("format {} does not apply to this item (date formats need a date item)", fmt)
 
 
 def resolve(m, store, counter=None):
@@ -37,7 +53,7 @@ def resolve(m, store, counter=None):
     key = key.strip()
     value = store.read(key)
     if value is None:
-        raise Missing(f"there is no item named '{key}'")
+        raise Missing("there is no item named {}", key)
     v = apply_format(value, fmt) if fmt else value
     if counter is not None:
         counter[key] = counter.get(key, 0) + 1

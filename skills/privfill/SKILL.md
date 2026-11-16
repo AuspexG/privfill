@@ -48,13 +48,14 @@ Placeholders take an optional format, so the user never has to enter the same de
 
 In a Word document, keep each placeholder inside a single run: do not let a formatting change split it.
 
-To use a detail in a command (renaming, zipping):
+
+To bundle outputs into a zip archive whose name contains a detail:
 
 ```
-privfill run -- zip 'out/{{student id}}_homework.zip' homework.ipynb
+privfill pack 'out/{{student id}}_homework.zip' 'out/{{student id}}_report.docx' homework.ipynb
 ```
 
-The command's output is discarded and only its exit code comes back. An argument that starts with `raw:` is passed through without substitution; use it to refer to an existing file whose name contains a placeholder.
+Every path may contain placeholders; that is how you name an output you rendered without knowing its real name. Each file goes into the archive under its base name, so directories and two files with the same name are refused. The files are left untouched, and a failure writes nothing. Never put a placeholder on any other command line: privfill does not run commands, and nothing else can fill one in.
 
 ## When an item is missing, or the user wants to record something
 

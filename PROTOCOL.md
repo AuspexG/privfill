@@ -108,7 +108,7 @@ A format that does not apply to the item fails with exit code 2.
 | `.docx`, `.xlsx`, `.pptx` | Text of the `.xml` and `.rels` parts is substituted with XML escaping; images and other binary parts are untouched. A placeholder must sit inside a single text run. |
 | `.ipynb`, `.json` | Parsed, every string substituted, written back. |
 | anything else | Substituted as UTF-8 text. |
-| file names, command arguments | The output path of `render` and the arguments of `run` may contain placeholders. |
+| file names | The output path of `render` and every path given to `pack` may contain placeholders. |
 
 ## 4. Commands
 
@@ -123,7 +123,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill add <item>` | Enter one required `text` item. |
 | `privfill render <master> <output>` | Copy the master to the output path and fill it; the master stays untouched. |
 | `privfill fill <file>...` | Fill in place. This destroys the master, so use it only on throwaway copies. |
-| `privfill run -- <cmd> [args]...` | Substitute placeholders in the arguments, run the command with its output discarded, report its exit code. Arguments starting with `raw:` lose the prefix and are passed as they are. |
+| `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
 
 ### 4.1 Exit codes
 
@@ -135,7 +135,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | 3 | The person cancelled the form |
 | 4 | The entry protocol is invalid |
 
-`run` returns the exit code of the command it started.
+The program never starts another program, so no value is ever placed on a command line. There is no command that runs one with placeholders in its arguments; use `render` for naming and `pack` for bundling.
 
 ### 4.2 JSON output
 
@@ -151,12 +151,12 @@ With `--json` before the subcommand, the output is one JSON object:
 | `form`, `add` | `items`: one entry per field with `name`, `status`, `type`, `placeholder`, `stored` |
 | `fill` | `files`: one entry per file with `index`, `ok`, `used` |
 | `render` | `used`: `{item name: count}` |
-| `run` | `used`, `exit_code` |
+| `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
 
 `status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the data file.
 
-`fill` refers to files by index, not by name, because a file name may itself contain personal details.
+`fill` and `pack` refer to files by index, not by name, because a file name may itself contain personal details.
 
 ### 4.3 Environment
 

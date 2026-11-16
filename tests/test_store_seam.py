@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -17,6 +18,30 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from privfill.cli import main  # noqa: E402
 from privfill.store import FileStore  # noqa: E402
+
+
+STARTED = []  # process starts seen while WATCHING; an audit hook cannot be removed, so it is switched
+WATCHING = []
+PROCESS_EVENTS = ("subprocess.Popen", "os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.fork", "os.forkpty")
+
+
+def note_process_start(event, args):
+    if WATCHING and event in PROCESS_EVENTS:
+        STARTED.append(event)
+
+
+sys.addaudithook(note_process_start)
+
+
+@contextlib.contextmanager
+def watch_process_starts():
+    """Yield the list of process starts that Python reports while the block runs."""
+    del STARTED[:]
+    WATCHING.append(True)
+    try:
+        yield STARTED
+    finally:
+        WATCHING.pop()
 
 
 class MemoryStore:
@@ -136,6 +161,25 @@ class TestCommandsThroughDouble(unittest.TestCase):
         self.assertEqual((res["packed"], res["used"]), (2, {"name": 1}))
         with zipfile.ZipFile(self.path("hw_Jane Roe.zip")) as z:
             self.assertEqual({n: z.read(n) for n in z.namelist()}, {"a.txt": b"alpha", "b.txt": b"beta"})
+
+    def test_no_command_starts_another_process(self):
+        with watch_process_starts() as started:  # the watch itself works
+            subprocess.run([sys.executable, "-c", ""], check=True)
+        self.assertTrue(started)
+        self.write("m_{{name}}.md", "{{name}} {{birthday|YYYY}}")
+        spec = json.dumps({"fields": [{"name": "name"}]})
+        with watch_process_starts() as started:
+            calls = [
+                self.run_main("init"), self.run_main("keys"), self.run_main("protocol"),
+                self.run_main("form", spec, answers={"name": "Jane Roe"}),
+                self.run_main("add", "name", answers={"name": "Jane Roe"}),
+                self.run_main("render", self.path("m_{{name}}.md"), self.path("o_{{name}}.md")),
+                self.run_main("fill", self.path("m_{{name}}.md")),
+                self.run_main("pack", self.path("{{name}}.zip"), self.path("o_{{name}}.md")),
+                self.run_main("run", "--", "echo", "{{name}}"),
+            ]
+        self.assertEqual([rc for rc, _ in calls], [0] * 8 + [1], calls)
+        self.assertEqual(started, [])
 
     def test_json_extras_do_not_leak_between_calls(self):
         self.run_main("--json", "keys")

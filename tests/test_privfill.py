@@ -295,6 +295,26 @@ class TestFill(Case):
         self.assert_no_values(out)
         self.assertEqual(sorted(os.listdir(self.dir)), ["notes.txt", "store"])
 
+    def test_pack_refuses_what_it_cannot_name_and_replaces_whole_archives(self):
+        self.seed()
+        self.write("notes.txt", "plain")
+        os.mkdir(self.path("sub"))
+        self.write("sub/notes.txt", "other")
+        archive = self.path("a.zip")
+        self.assertEqual(self.tool("pack", archive, self.path("sub"))[0], 1)
+        self.assertEqual(self.tool("pack", archive, self.path("notes.txt"), self.path("sub/notes.txt"))[0], 1)
+        self.assertFalse(os.path.exists(archive))
+        self.assertEqual(self.tool("pack", archive, self.path("notes.txt"))[0], 0)
+        self.assertEqual(os.stat(archive).st_mode & 0o777, 0o600)
+        self.assertEqual(self.tool("pack", archive, archive)[0], 1)
+        self.assertEqual(self.tool("pack", archive, self.path("sub/notes.txt"), self.path("gone.txt"))[0], 1)
+        with zipfile.ZipFile(archive) as z:  # the earlier archive survives a failed attempt
+            self.assertEqual(z.read("notes.txt"), b"plain")
+        self.assertEqual(self.tool("pack", archive, self.path("sub/notes.txt"))[0], 0)
+        with zipfile.ZipFile(archive) as z:
+            self.assertEqual(z.read("notes.txt"), b"other")
+        self.assertEqual(sorted(os.listdir(self.dir)), ["a.zip", "notes.txt", "store", "sub"])
+
     def test_run_is_gone(self):
         self.seed()
         rc, out = self.tool("run", "--", "true")

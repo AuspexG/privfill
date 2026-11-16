@@ -79,11 +79,11 @@ privfill.py form '<JSON>' | <file>     show an entry form
 privfill.py add <item>                 enter one free-text item
 privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
-privfill.py run -- <cmd> [args]...     run a command with placeholders in its arguments
+privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py protocol                   print the entry protocol summary
 ```
 
-Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
+Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never starts another program, so a detail is never put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
 
 ## Languages
 
@@ -118,7 +118,8 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `form.py` | the entry form (PyQt6, with a Tk fallback) |
 | `filling.py` | placeholders, formats and the file types they are filled in |
 | `texts.py` | the usage text and the form's strings in each language |
-| `atomic.py` | replacing a file in one step |
+| `packing.py` | bundling files into a zip archive |
+| `atomic.py` | writing or replacing a file in one step |
 
 Commands reach items only through a `Store`, so another way of keeping them needs a new backend in `store.py` and nothing else.
 

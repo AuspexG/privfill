@@ -267,20 +267,40 @@ class TestFill(Case):
         self.assertEqual(rc, 1, out)
         self.assertEqual(read(self.path("m.md")), "{{passport}}")
 
-    def test_run_substitutes_and_hides_output(self):
+    def test_pack_bundles_outputs_and_leaves_them_untouched(self):
         self.seed()
-        self.write("x_{{name}}.txt", "")
-        rc, out = self.tool("--json", "run", "--", "mv", "raw:" + self.path("x_{{name}}.txt"), self.path("x_{{name}}.txt"))
+        self.write("Jane Roe_report.md", "filled")
+        self.write("notes.txt", "plain")
+        before = read_bytes(self.path("Jane Roe_report.md"))
+        rc, out = self.tool("--json", "pack", self.path("{{name}}_hw.zip"), self.path("{{name}}_report.md"), self.path("notes.txt"))
         self.assertEqual(rc, 0, out)
         self.assert_no_values(out)
-        self.assertTrue(os.path.exists(self.path("x_Jane Roe.txt")))
-        rc, out = self.tool("run", "--", "echo", "{{name}}", "{{phone}}")
-        self.assertEqual(rc, 0, out)
-        self.assert_no_values(out)
-        self.assertEqual(self.tool("run", "--", "false")[0], 1)
-        self.assertEqual(self.tool("run", "--", "echo", "{{passport}}")[0], 2)
-        self.assertEqual(self.tool("run", "--", "no-such-command-privfill")[0], 1)
+        res = json.loads(out)
+        self.assertEqual((res["packed"], res["used"]), (2, {"name": 2}))
+        with zipfile.ZipFile(self.path("Jane Roe_hw.zip")) as z:
+            self.assertEqual(sorted(z.namelist()), ["Jane Roe_report.md", "notes.txt"])
+            self.assertEqual(z.read("notes.txt"), b"plain")
+        self.assertEqual(read_bytes(self.path("Jane Roe_report.md")), before)
 
+    def test_pack_failure_leaves_no_archive_behind(self):
+        self.seed()
+        self.write("notes.txt", "plain")
+        rc, out = self.tool("pack", self.path("{{passport}}.zip"), self.path("notes.txt"))
+        self.assertEqual(rc, 2, out)
+        self.assertIn("Available items: name,", out)
+        rc, out = self.tool("pack", self.path("{{name|YYYY}}.zip"), self.path("notes.txt"))
+        self.assertEqual(rc, 2, out)
+        rc, out = self.tool("pack", self.path("{{name}}.zip"), self.path("notes.txt"), self.path("absent.txt"))
+        self.assertEqual(rc, 1, out)
+        self.assert_no_values(out)
+        self.assertEqual(sorted(os.listdir(self.dir)), ["notes.txt", "store"])
+
+    def test_run_is_gone(self):
+        self.seed()
+        rc, out = self.tool("run", "--", "true")
+        self.assertEqual(rc, 1, out)
+        self.assertIn("Unknown subcommand", out)
+        self.assertNotIn("run", self.tool()[1].replace("runtime", ""))
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,9 +16,8 @@ ever contains a value.
   privfill.py render <master> <output>   fill a copy; the master stays untouched
                                          (the output path may contain placeholders)
   privfill.py fill <file>...             fill files in place
-  privfill.py run -- <cmd> [args]...     substitute placeholders in args, run the
-                                         command with its output discarded
-                                         (args starting with raw: are passed as is)
+  privfill.py pack <archive> <file>...   bundle files into a zip archive
+                                         (every path may contain placeholders)
 
 Put --json before the subcommand for a single JSON object as output.
 Placeholders: {{item}}, {{item|YYYY/MM/DD}}, {{item|last4}}, {{item|first6}}

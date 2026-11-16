@@ -1,0 +1,16 @@
+{
+  "protocol": 1,
+  "title": "One more detail",
+  "note": "The enrolment form asks for this.",
+  "fields": [
+    {
+      "name": "enrolment year",
+      "label": "Which year did you enrol?",
+      "hint": "Just the year, e.g. 2024",
+      "type": "number",
+      "required": true,
+      "pattern": "(19|20)\\d{2}",
+      "pattern_hint": "Please give a four-digit year such as 2024."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "protocol": 1,
+  "title": "完善个人档案",
+  "note": "这些是报名表、申请表、登记表里最常被问到的项目。手头有的就填，没有的留空，以后随时可以补。",
+  "fields": [
+    {"section": "基本情况", "name": "姓名", "required": true},
+    {"name": "性别", "type": "choice", "choices": ["男", "女"]},
+    {"name": "出生日期", "hint": "例如 2005年3月4日，写成 2005-3-4 也行", "type": "date"},
+    {"name": "身份证号", "label": "居民身份证号码", "hint": "照着证件输入 18 位即可，中间有空格、末位小写 x 都没关系", "type": "id_card"},
+    {"section": "联系方式", "name": "手机号", "label": "常用手机号", "hint": "例如 138 0013 8000，带空格、横线、+86 都可以", "type": "phone"},
+    {"name": "邮箱", "hint": "例如 name@example.com", "type": "email"},
+    {"name": "通讯地址", "hint": "写到门牌号，一行写完"},
+    {"section": "紧急联系人", "name": "紧急联系人", "label": "紧急联系人是谁", "hint": "写姓名和关系，例如 张某（父亲）"},
+    {"name": "紧急联系人电话", "label": "紧急联系人的电话", "type": "phone"}
+  ]
+}

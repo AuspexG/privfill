@@ -1,0 +1,9 @@
+# 个人信息数据文件：任何情况下都不应进入仓库
+profile.md
+个人信息.md
+*.profile.md
+.privfill-*
+
+__pycache__/
+*.pyc
+.DS_Store

@@ -1,0 +1,104 @@
+---
+name: privfill
+description: Use the user's personal details (name, ID numbers, phone, address, date of birth and similar) in documents, forms and file names without ever reading them. Use this whenever a task needs such details, when the user wants to store or update personal information, or when a file that contains their personal details has to be created, reviewed or changed.
+---
+
+# privfill
+
+The user's personal details are stored on this machine and managed by a local program. You can use them, but you must not see them: anything you read enters the conversation and leaves the machine. You write placeholders; the program fills in the real values locally and reports only counts and item names.
+
+The program:
+
+```
+python3 ~/.claude/skills/privfill/privfill.py <subcommand>
+```
+
+Below it is written as `privfill`. If that path does not exist, ask the user where privfill is installed. Every call may prompt the user for approval; that is intended.
+
+## Never
+
+- Read, edit or list the privfill data file (`~/.privfill/` by default) or its directory.
+- Ask the user for a personal detail in chat, or put one on a command line or in a protocol.
+- Read, diff, grep or list a filled output file or its directory, not even to check the result.
+- Store personal details in memory or notes, or send them to any external service.
+
+## When a task needs personal details
+
+1. Run `privfill keys`. It returns item names only.
+2. Write the document as a **master**: put `{{item name}}` wherever a detail belongs, including in file names. Names must match `keys` exactly.
+3. Do all writing, checking and revising on the master.
+4. As the last step, generate the output into a different directory from the master:
+
+   ```
+   privfill render 'report/{{student id}}_report.docx' 'out/{{student id}}_report.docx'
+   ```
+
+5. Judge the result only by the counts and exit code the program reports. Ask the user to open the output for the final check.
+
+To change a delivered file later, edit the master and render again. Keep the master.
+
+Placeholders take an optional format, so the user never has to enter the same detail twice in different shapes:
+
+| Placeholder | Result |
+|---|---|
+| `{{date of birth}}` | 2005-03-04 |
+| `{{date of birth\|YYYY/MM/DD}}` | 2005/03/04 |
+| `{{date of birth\|D.M.YYYY}}` | 4.3.2005 |
+| `{{phone\|last4}}`, `{{phone\|first3}}` | last four / first three characters |
+
+In a Word document, keep each placeholder inside a single run: do not let a formatting change split it.
+
+To use a detail in a command (renaming, zipping):
+
+```
+privfill run -- zip 'out/{{student id}}_homework.zip' homework.ipynb
+```
+
+The command's output is discarded and only its exit code comes back. An argument that starts with `raw:` is passed through without substitution; use it to refer to an existing file whose name contains a placeholder.
+
+## When an item is missing, or the user wants to record something
+
+1. Run `privfill keys` so you do not create a duplicate or a near-synonym.
+2. Tell the user a form is about to appear on their screen.
+3. Run `privfill form '<protocol>'`. The user fills in the form themself. Put related items in one form.
+
+The protocol is JSON that describes questions only:
+
+```json
+{
+  "protocol": 1,
+  "title": "Contact details",
+  "note": "Needed for the registration form.",
+  "fields": [
+    {"name": "phone", "label": "Mobile phone number", "hint": "e.g. 138 0013 8000", "type": "phone", "required": true},
+    {"name": "date of birth", "hint": "e.g. 2005-03-04", "type": "date"}
+  ]
+}
+```
+
+- Write `label` and `hint` in plain words, in the user's language, with an example after "e.g.". The user does not need to know any format; the program normalizes locally.
+- Choose the right `type`: `text`, `date`, `phone`, `id_card` (PRC resident ID), `email`, `number`, `choice` (needs `choices`).
+- Group more than five fields with `section`.
+- Optional keys: `required`, `pattern`, `pattern_hint`. Any other key, such as `value` or `default`, makes the program reject the whole protocol.
+
+Run `privfill protocol` for the summary of the format.
+
+The program reports each item's status (stored, updated, unchanged, left empty) and its placeholder. Exit code 3 means the user cancelled: do not show the form again; ask them first.
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Usage or runtime error |
+| 2 | A placeholder names an item that does not exist, or a format does not apply. The message lists the available items. |
+| 3 | The user cancelled the form |
+| 4 | The protocol is invalid |
+
+Put `--json` before the subcommand for machine-readable output.
+
+## Other situations
+
+- The user states a personal detail in chat: say once that it has already been sent, and suggest the form next time. Then carry on with the task.
+- The user hands you an existing file that already contains their details: tell them before opening it and suggest turning it into a master first.
+- Testing privfill itself: point it at a fake file with `PRIVFILL_DATA=<path>`; never test on the real data file.

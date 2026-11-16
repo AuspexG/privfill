@@ -1,0 +1,15 @@
+{
+  "protocol": 1,
+  "title": "Complete your profile",
+  "note": "These are the details that registration and application forms ask for most often. Fill in what you have; leave the rest empty and add it later.",
+  "fields": [
+    {"section": "About you", "name": "full name", "required": true},
+    {"name": "date of birth", "hint": "e.g. 2005-03-04; 2005/3/4 works too", "type": "date"},
+    {"name": "gender", "type": "choice", "choices": ["female", "male", "other", "prefer not to say"]},
+    {"section": "Contact", "name": "phone", "label": "Mobile phone number", "hint": "e.g. 138 0013 8000; spaces and dashes are fine", "type": "phone"},
+    {"name": "email", "hint": "e.g. name@example.com", "type": "email"},
+    {"name": "address", "label": "Postal address", "hint": "On one line, down to the house or unit number"},
+    {"section": "Emergency contact", "name": "emergency contact", "label": "Who should be contacted in an emergency?", "hint": "Name and relationship, e.g. Sam Roe (father)"},
+    {"name": "emergency phone", "label": "Their phone number", "type": "phone"}
+  ]
+}

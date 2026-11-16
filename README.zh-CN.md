@@ -77,11 +77,11 @@ privfill.py form '<JSON>' | <文件>     弹出录入表单
 privfill.py add <项目名>               录入一项文字
 privfill.py render <母版> <成品路径>   填充母版的副本
 privfill.py fill <文件>...             就地填充
-privfill.py run -- <命令> [参数]...    运行参数里带占位符的命令
+privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py protocol                   打印录入协议摘要
 ```
 
-支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
+支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。程序不会启动别的程序，所以个人信息不会出现在任何命令行上。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
 
 ## 语言
 
@@ -116,7 +116,8 @@ privfill.py protocol                   打印录入协议摘要
 | `form.py` | 录入表单（PyQt6，没有时退回 Tk） |
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
 | `texts.py` | 用法说明和表单各语言的文字 |
-| `atomic.py` | 一步替换文件 |
+| `packing.py` | 把文件打包成 zip |
+| `atomic.py` | 一步写入或替换文件 |
 
 命令只通过 `Store` 接触个人信息，所以换一种保存方式只需要在 `store.py` 里加一个后端。
 

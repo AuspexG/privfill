@@ -21,12 +21,12 @@
 
 ## 安装
 
-需要 Python 3.8 以上。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
+需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`）。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
 
 ```
 git clone https://github.com/AuspexG/privfill.git
 cd privfill
-./install.sh            # 程序和数据文件放在 ~/.privfill
+./install.sh            # 程序放在 ~/.privfill，保险库在第一次使用时创建在那里
 ./install.sh --skill    # 同时安装 Claude Code skill
 ```
 
@@ -71,7 +71,7 @@ cd privfill
 ## 命令
 
 ```
-privfill.py init                       创建数据文件
+privfill.py init                       创建保险库
 privfill.py keys                       列出项目名
 privfill.py form '<JSON>' | <文件>     弹出录入表单
 privfill.py add <项目名>               录入一项文字
@@ -97,10 +97,11 @@ privfill.py protocol                   打印录入协议摘要
 
 **在助手遵守规则的前提下**，privfill 让个人信息的内容不出现在助手发出和收到的任何东西里。它是一套约定加一个工具，不是沙箱。
 
-- 助手只要有读文件的能力，就读得到数据文件和填好的成品。请配合你所用工具的权限机制，让每次访问都需要你批准；Claude Code 里只要三行设置。
+- 助手只要有读文件的能力，就读得到填好的成品，也看得到保险库里各项的名称。请配合你所用工具的权限机制，让每次访问都需要你批准；Claude Code 里只要三行设置。
 - 你在对话里直接说出的内容已经发送出去了。请用表单录入。
 - 填好的成品是普通文件，里面是明文。它之后去哪里由你决定。
-- 数据文件是权限 600 的明文文件，防的是这台机器上的其他用户，不是以你的身份运行的其他程序。它没有加密。
+- 个人信息保存在加密的保险库里，每次使用时由你在本机窗口里输入口令解锁。拿到文件却没有口令的人只能看到项目名，看不到内容。它防不了在你输入口令时以你的身份运行的程序；口令忘了无法找回。文件格式和完整的保护边界见 [docs/vault.md](docs/vault.md)（英文）。
+- 早期版本留下的明文 `profile.md` 目前不会被读取或迁移：请重新录入，并自行删除旧文件。
 - `id_card` 类型只校验中国大陆居民身份证号。其他证件请用 `text` 加 `pattern`。
 
 ## 代码结构
@@ -110,16 +111,17 @@ privfill.py protocol                   打印录入协议摘要
 | 模块 | 内容 |
 |---|---|
 | `cli.py` | 各个命令和它们的输出 |
-| `store.py` | `Store` 接口（创建、列出项目名、读、写、删除一项）和目前唯一的后端：明文数据文件 |
+| `store.py` | `Store` 接口（创建、列出项目名、读、写、删除一项）、它的错误类型，以及早期版本的明文数据文件 |
+| `vault.py` | 各命令使用的加密保险库，以及解锁方式 |
 | `normalize.py` | 各类型答案的整理规则 |
 | `protocol.py` | 录入协议的校验和摘要 |
-| `form.py` | 录入表单（PyQt6，没有时退回 Tk） |
+| `form.py` | 录入表单和口令窗口（PyQt6，没有时退回 Tk） |
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
 | `texts.py` | 用法说明和表单各语言的文字 |
 | `packing.py` | 把文件打包成 zip |
 | `atomic.py` | 一步写入或替换文件 |
 
-命令只通过 `Store` 接触个人信息，所以换一种保存方式只需要在 `store.py` 里加一个后端。
+命令只通过 `Store` 接触个人信息，所以换一种保存方式只需要加一个后端。
 
 ## 测试
 

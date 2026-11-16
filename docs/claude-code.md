@@ -40,10 +40,10 @@ When you approve, glance at the command. It should be `privfill.py` followed by 
 
 ## Limits of this layer
 
-Claude Code enforces `ask` rules, and it matches shell commands by text, so this is not a sandbox. Its value is that every access passes in front of you. For a harder line, also deny direct reads of the data file:
+Claude Code enforces `ask` rules, and it matches shell commands by text, so this is not a sandbox. Its value is that every access passes in front of you. For a harder line, also deny direct reads of the vault, which holds item names in the clear and values encrypted:
 
 ```json
-"deny": ["Read(~/.privfill/profile.md)"]
+"deny": ["Read(~/.privfill/vault.json)"]
 ```
 
 privfill itself is not affected: the program reads the file, not Claude's file tool.

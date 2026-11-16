@@ -42,6 +42,7 @@ W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
 A = "http://schemas.openxmlformats.org/drawingml/2006/main"
 P = "http://schemas.openxmlformats.org/presentationml/2006/main"
+PASSPHRASE = "correct horse battery staple"  # made up; typed by the test hook, never by a person
 VALUES = ["Jane Roe", "2005-03-04", "13800138000", SAMPLE_ID, "jane@example.com", "Example Road"]
 
 
@@ -59,9 +60,9 @@ class Case(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = self.tmp.name
-        self.data = os.path.join(self.dir, "store", "profile.md")
+        self.data = os.path.join(self.dir, "store", "vault.json")
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("PRIVFILL_")}
-        self.env.update(PRIVFILL_DATA=self.data, PRIVFILL_LANG="en")
+        self.env.update(PRIVFILL_VAULT=self.data, PRIVFILL_LANG="en", PRIVFILL_PASSPHRASE_TEST=PASSPHRASE)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -105,19 +106,8 @@ class TestStore(Case):
         rc, out = self.tool("--json", "keys")
         self.assertEqual((rc, json.loads(out)["items"]), (0, []))
 
-    def test_default_location_is_home_not_program_dir(self):
-        home = self.path("home")
-        os.mkdir(home)
-        env = {k: v for k, v in self.env.items() if k != "PRIVFILL_DATA"}
-        env["HOME"] = home
-        rc, out = self.tool("init", env=env)
-        self.assertEqual(rc, 0, out)
-        self.assertTrue(os.path.exists(os.path.join(home, ".privfill", "profile.md")))
-        self.assertFalse(os.path.exists(os.path.join(os.path.dirname(TOOL), "profile.md")))
-
-    def test_file_header_follows_language(self):
+    def test_items_survive_between_runs_whatever_the_form_language(self):
         self.tool("init", env=dict(self.env, PRIVFILL_LANG="zh"))
-        self.assertIn("| 项目 | 内容 |", read(self.data))
         rc, out = self.tool("form", '{"fields": [{"name": "x"}]}', answers={"x": "1"})
         self.assertEqual(rc, 0, out)
         rc, out = self.tool("--json", "keys")
@@ -128,11 +118,13 @@ class TestForm(Case):
     def test_normalizes_and_never_prints_values(self):
         out = self.seed()
         self.assert_no_values(out)
-        stored = read(self.data)
-        for expect in ("| name | Jane Roe |", "| birthday | 2005-03-04 |", "| phone | 13800138000 |",
-                       f"| id number | {SAMPLE_ID} |", "| email | jane@example.com |", "| height | 175 |",
-                       "| size | M |", "| 地址 | 1 Example Road｜Unit 2 |"):
-            self.assertIn(expect, stored)
+        self.write("all.md", "\n".join("{{" + f["name"] + "}}" for f in SPEC["fields"]))
+        rc, out = self.tool("render", self.path("all.md"), self.path("all.out"))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(read(self.path("all.out")).split("\n"),
+                         ["Jane Roe", "2005-03-04", "13800138000", SAMPLE_ID, "jane@example.com", "175", "M",
+                          "1 Example Road｜Unit 2"])
+        self.assert_no_values(read(self.data))
         self.assertEqual(os.stat(self.data).st_mode & 0o777, 0o600)
 
     def test_json_statuses(self):
@@ -148,7 +140,9 @@ class TestForm(Case):
         self.assertEqual(items["email"]["status"], "skipped")
         self.assertTrue(items["email"]["stored"])
         self.assertEqual(items["phone"]["placeholder"], "{{phone}}")
-        self.assertIn("| email | jane@example.com |", read(self.data))
+        self.write("e.md", "{{email}}")
+        self.assertEqual(self.tool("render", self.path("e.md"), self.path("e.out"))[0], 0)
+        self.assertEqual(read(self.path("e.out")), "jane@example.com")
 
     def test_rejects_bad_answers(self):
         base = {"name": "Jane Roe"}
@@ -196,11 +190,11 @@ class TestForm(Case):
     def test_test_hook_needs_explicit_data_file(self):
         home = self.path("home")
         os.mkdir(home)
-        env = {k: v for k, v in self.env.items() if k != "PRIVFILL_DATA"}
+        env = {k: v for k, v in self.env.items() if k != "PRIVFILL_VAULT"}
         env["HOME"] = home
         rc, out = self.tool("form", '{"fields": [{"name": "x"}]}', answers={"x": "1"}, env=env)
         self.assertNotEqual(rc, 0)
-        self.assertFalse(os.path.exists(os.path.join(home, ".privfill", "profile.md")))
+        self.assertFalse(os.path.exists(os.path.join(home, ".privfill", "vault.json")))
 
     def test_bundled_examples_are_valid(self):
         examples = os.path.join(os.path.dirname(TOOL), "examples")

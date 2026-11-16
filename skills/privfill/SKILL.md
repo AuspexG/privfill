@@ -46,9 +46,6 @@ Placeholders take an optional format, so the user never has to enter the same de
 | `{{date of birth\|D.M.YYYY}}` | 4.3.2005 |
 | `{{phone\|last4}}`, `{{phone\|first3}}` | last four / first three characters |
 
-In a Word document, keep each placeholder inside a single run: do not let a formatting change split it.
-
-
 To bundle outputs into a zip archive whose name contains a detail:
 
 ```

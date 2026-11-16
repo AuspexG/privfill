@@ -1,9 +1,9 @@
 #!/bin/sh
 # Install privfill.
-#   ./install.sh            program to ~/.privfill, data file created there
+#   ./install.sh            program to ~/.privfill; the vault is created there on first use
 #   ./install.sh --skill    also install the Claude Code skill to ~/.claude/skills/privfill
 # Only the program is copied: the launcher privfill.py and the privfill/ package beside it.
-# An existing data file is never read or overwritten.
+# An existing vault or data file is never read or overwritten.
 set -eu
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
@@ -35,9 +35,8 @@ install_program() {
 mkdir -p "$DEST"
 chmod 700 "$DEST"
 install_program "$DEST"
-PRIVFILL_DATA="$DEST/profile.md" "$PY" "$DEST/privfill.py" init
 echo "Program:   $DEST/privfill.py"
-echo "Data file: $DEST/profile.md"
+echo "Vault:     $DEST/vault.json (created, with a passphrase you choose, the first time you enter a detail)"
 
 if [ "$SKILL" = 1 ]; then
     SK="$HOME/.claude/skills/privfill"
@@ -52,6 +51,14 @@ if "$PY" -c "import PyQt6.QtWidgets" >/dev/null 2>&1; then
 else
     echo "Form UI:   PyQt6 not found, falling back to a plain Tk form."
     echo "           Install it for the full form: python-pyqt6, python3-pyqt6 or 'pip install PyQt6'."
+fi
+
+if "$PY" -c "import cryptography" >/dev/null 2>&1; then
+    echo "Vault:     encryption library found"
+else
+    echo "Vault:     the Python library 'cryptography' is NOT installed; privfill cannot store or fill anything without it."
+    echo "           Install it with the system package manager:"
+    echo "           python-cryptography (Arch), python3-cryptography (Debian, Ubuntu, Fedora)."
 fi
 
 cat <<EOF

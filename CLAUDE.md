@@ -2,7 +2,7 @@
 
 Lets an AI assistant use a person's personal details without ever seeing them. Read `PROTOCOL.md` for the contract and `README.md` for the overview. The rule that matters most: no command output, test fixture, example, screenshot, issue or commit in this repository may contain a real personal value. Use fake data only, and scan before every push.
 
-`privfill.py` is only a launcher; the code is the `privfill/` package (module table in `README.md`). Commands must reach items only through the `Store` interface in `privfill/store.py`.
+`privfill.py` is only a launcher; the code is the `privfill/` package (module table in `README.md`). Commands must reach items only through the `Store` interface in `privfill/store.py`; the backend in use is the encrypted vault in `privfill/vault.py` (format and threat boundary in `docs/vault.md`). Tests need the `cryptography` library.
 
 ## Agent skills
 

@@ -9,7 +9,7 @@ One principle runs through all of it: **values stay on the machine**. No command
 | Term | Meaning |
 |---|---|
 | Item | One personal detail: a name and a value, for example the item named `date of birth`. |
-| Data file | The local file holding all items. The caller must not read, edit or list it. |
+| Vault | The local encrypted file holding all items (format in `docs/vault.md`). The caller must not read, edit or list it. |
 | Entry protocol | The JSON the caller passes to `form`, describing the questions to ask the person. |
 | Placeholder | A marker in a document that stands for an item, written `{{item name}}`. |
 | Master | A document with placeholders and no real values. The caller works only on masters. |
@@ -73,7 +73,7 @@ Date parsing reads year, month, day in that order. All types except `text` first
 
 ### 2.3 Form behaviour
 
-- Items already in the data file are pre-filled. They appear only on the person's screen.
+- Items already in the vault are pre-filled. They appear only on the person's screen.
 - An item the person changes counts as updated; one left alone counts as unchanged; an empty optional field counts as skipped.
 - If a check fails, the form stays open and states the reason under the field.
 - If the person cancels or closes the window, nothing is saved and the exit code is 3.
@@ -116,7 +116,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 
 | Command | Effect |
 |---|---|
-| `privfill init` | Create an empty data file (mode 600). No-op if it exists. |
+| `privfill init` | Create an empty vault (mode 600); the person chooses its passphrase in a local dialog. No-op if it exists. |
 | `privfill keys` | List the stored item names. |
 | `privfill protocol` | Print a summary of the entry protocol. |
 | `privfill form '<JSON>'` or `form <file>` | Show a form described by an entry protocol. |
@@ -134,6 +134,9 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | 2 | A placeholder names an item that does not exist, or a format does not apply |
 | 3 | The person cancelled the form |
 | 4 | The entry protocol is invalid |
+| 5 | The vault was not unlocked: the person entered a wrong passphrase |
+
+Every command that reads or writes a value (`form`, `add`, `render`, `fill`, `pack`) makes the program ask the person for the vault passphrase in a local dialog; `keys` does not. The caller never supplies the passphrase. If the person closes the dialog the exit code is 3; after exit code 5, ask the person before trying again. A vault that is unreadable or was altered, and a missing encryption library, give exit code 1 with a message that says which.
 
 Placeholders are filled only inside the program, which never passes a value to another program, so no value is ever placed on a command line. There is no command that runs a program with placeholders in its arguments; use `render` for naming and `pack` for bundling.
 
@@ -154,7 +157,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
 
-`status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the data file.
+`status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the vault.
 
 `fill` and `pack` refer to files by index, not by name, because a file name may itself contain personal details.
 
@@ -162,14 +165,14 @@ With `--json` before the subcommand, the output is one JSON object:
 
 | Variable | Meaning |
 |---|---|
-| `PRIVFILL_DATA` | Path of the data file. Default: `~/.privfill/profile.md`. |
+| `PRIVFILL_VAULT` | Path of the vault. Default: `~/.privfill/vault.json`. |
 | `PRIVFILL_LANG` | `en` or `zh` for the form text. Default: from the system locale. |
 
 Command output is always English, since it is read by the caller.
 
 ## 5. Rules for the caller
 
-1. Do not read, edit or list the data file or its directory.
+1. Do not read, edit or list the vault or its directory.
 2. Do not ask for values in conversation, and do not put values in a protocol or on a command line.
 3. Write, review and revise only masters. To change an output, change the master and render again.
 4. After rendering, do not read, compare or list the output or its directory. Judge the result by the reported counts and exit code, and leave the final check to the person.
@@ -183,10 +186,10 @@ It guarantees that, as long as the caller follows section 5, values do not appea
 
 It does not guarantee:
 
-- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read the data file or an output. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval.
+- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read an output, and can see the item names in the vault. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval.
 - Anything about details the person types into the conversation. Those have already been sent.
 - Where outputs go. Outputs are plain text.
-- Encryption at rest. The data file is plain text with mode 600, which keeps out other system users, not other programs running as the same user.
+- More than encryption at rest. The vault keeps values from anyone who reads the file without the passphrase. It does not hide item names, and it does not protect against a program that runs as the person while the vault is in use. The boundary is set out in `docs/vault.md`.
 
 ## 7. Versioning
 

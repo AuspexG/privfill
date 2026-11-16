@@ -1,7 +1,7 @@
 """The Store seam: the commands driven in-process by a test double, and the file backend's contract.
 
 Fake data only. The double keeps items in memory, so these tests also show that no command
-reaches the data file by any other route: PRIVFILL_DATA points at a path that must never appear.
+reaches the vault by any other route: PRIVFILL_VAULT points at a path that must never appear.
 """
 import contextlib
 import io
@@ -51,6 +51,7 @@ class MemoryStore:
 
     def __init__(self, items=None):
         self.items = dict(items or {})
+        self.types = {}
         self.created = 0
 
     def create(self):
@@ -63,9 +64,10 @@ class MemoryStore:
     def read(self, name):
         return self.items.get(name)
 
-    def write(self, name, value):
+    def write(self, name, value, type="text"):
         replaced = name in self.items
         self.items[name] = value
+        self.types[name] = type
         return replaced
 
     def delete(self, name):
@@ -76,7 +78,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = self.tmp.name
-        self.data = os.path.join(self.dir, "never", "profile.md")
+        self.data = os.path.join(self.dir, "never", "vault.json")
         self.store = MemoryStore({"name": "Jane Roe", "birthday": "2005-03-04"})
 
     def tearDown(self):
@@ -84,7 +86,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_main(self, *args, answers=None):
-        env = {"PRIVFILL_DATA": self.data, "PRIVFILL_LANG": "en"}
+        env = {"PRIVFILL_VAULT": self.data, "PRIVFILL_LANG": "en"}
         if answers is not None:
             env["PRIVFILL_FORM_TEST"] = json.dumps(answers)
         buf = io.StringIO()
@@ -121,6 +123,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
                                 answers={"name": "Jane Roe", "birthday": "2006/1/2", "phone": "138 0013 8000"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.store.items, {"name": "Jane Roe", "birthday": "2006-01-02", "phone": "13800138000"})
+        self.assertEqual(self.store.types, {"birthday": "date", "phone": "phone"})
         items = {i["name"]: (i["status"], i["stored"]) for i in json.loads(out)["items"]}
         self.assertEqual(items, {"name": ("unchanged", True), "birthday": ("updated", True),
                                  "phone": ("created", True), "email": ("skipped", False)})
@@ -217,6 +220,8 @@ class TestFileStore(unittest.TestCase):
         self.assertEqual(self.store.read("city"), "Example Town")
         self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o600)
         self.assertEqual(self.store.label, "profile.md")
+        with open(self.path, encoding="utf8") as f:
+            self.assertRegex(f.read(), r"\| (Item \| Value|项目 \| 内容) \|")
 
     def test_delete_removes_one_item_only(self):
         self.store.write("phone", "13800138000")

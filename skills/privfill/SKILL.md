@@ -17,7 +17,7 @@ Below it is written as `privfill`. If that path does not exist, ask the user whe
 
 ## Never
 
-- Read, edit or list the privfill data file (`~/.privfill/` by default) or its directory.
+- Read, edit or list the privfill vault (`~/.privfill/` by default) or its directory.
 - Ask the user for a personal detail in chat, or put one on a command line or in a protocol.
 - Read, diff, grep or list a filled output file or its directory, not even to check the result.
 - Store personal details in memory or notes, or send them to any external service.
@@ -95,6 +95,9 @@ The program reports each item's status (stored, updated, unchanged, left empty) 
 | 2 | A placeholder names an item that does not exist, or a format does not apply. The message lists the available items. |
 | 3 | The user cancelled the form |
 | 4 | The protocol is invalid |
+| 5 | The user entered a wrong vault passphrase. Ask them before trying again. |
+
+Commands that use a value make the program ask the user for their vault passphrase in a local window. You never see it, never ask for it and never supply it. If the user closes that window the exit code is 3.
 
 Put `--json` before the subcommand for machine-readable output.
 
@@ -102,4 +105,4 @@ Put `--json` before the subcommand for machine-readable output.
 
 - The user states a personal detail in chat: say once that it has already been sent, and suggest the form next time. Then carry on with the task.
 - The user hands you an existing file that already contains their details: tell them before opening it and suggest turning it into a master first.
-- Testing privfill itself: point it at a fake file with `PRIVFILL_DATA=<path>`; never test on the real data file.
+- Testing privfill itself: point it at a fake vault with `PRIVFILL_VAULT=<path>`; never test on the real vault.

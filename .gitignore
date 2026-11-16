@@ -3,6 +3,7 @@ profile.md
 个人信息.md
 *.profile.md
 .privfill-*
+vault.json
 
 __pycache__/
 *.pyc

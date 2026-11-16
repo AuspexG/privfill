@@ -4,12 +4,12 @@ import io
 import json
 import os
 import shutil
-import subprocess
 
 from . import __version__
 from .filling import Missing, fill_file, sub
 from .form import run_form
 from .normalize import NORMS, Bad
+from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
 from .store import default_store
 from .texts import USAGE
@@ -148,28 +148,28 @@ def run_cmd(argv, store):
         RESULT.update(used=c)
         print("Output written; the master is untouched. " + (f"Filled {used(c)}." if c else "The master has no placeholders."))
         return 0
-    if cmd == "run":
-        args = argv[2:]
-        if args and args[0] == "--":
-            args = args[1:]
-        if not args:
-            print("Usage: run -- <command> [args]...")
+    if cmd == "pack":
+        if len(argv) < 4:
+            print("Usage: pack <archive path> <file>... (every path may contain placeholders)")
             return 1
         counter = {}
         try:
-            real = [a[4:] if a.startswith("raw:") else sub(a, store, counter=counter) for a in args]
+            dst, *files = [sub(a, store, counter=counter) for a in argv[2:]]
         except Missing as e:
-            print(f"Failed: {e}; the command was not run. {available(store)}")
+            print(f"Failed: {e}; nothing was written. {available(store)}")
             return 2
         try:
-            p = subprocess.run(real, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except OSError as e:
-            print(f"Failed: the command could not be started ({type(e).__name__}).")
+            pack(dst, files)
+        except PackError as e:
+            print(f"Failed: {e}; nothing was written.")
             return 1
-        RESULT.update(used=counter, exit_code=p.returncode)
-        print(f"Command ran, exit code {p.returncode}. Items used: {used(counter) or 'none'}.")
-        return p.returncode
-    print("Unknown subcommand. Available: init, keys, protocol, form, add, render, fill, run.")
+        except Exception as e:
+            print(f"Failed ({type(e).__name__}); nothing was written.")
+            return 1
+        RESULT.update(packed=len(files), used=counter)
+        print(f"Archive written with {len(files)} file(s); the files are untouched. Items used: {used(counter) or 'none'}.")
+        return 0
+    print("Unknown subcommand. Available: init, keys, protocol, form, add, render, fill, pack.")
     return 1
 
 

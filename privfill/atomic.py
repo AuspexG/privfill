@@ -1,4 +1,4 @@
-"""Replace a file in one step, so a failure never leaves it half written."""
+"""Write or replace a file in one step, so a failure never leaves it half written."""
 import os
 import shutil
 import tempfile
@@ -10,7 +10,8 @@ def atomic_write(path, writer):
     os.close(fd)
     try:
         writer(tmp)
-        shutil.copymode(path, tmp)
+        if os.path.exists(path):
+            shutil.copymode(path, tmp)  # a new file stays private (mode 600)
         os.replace(tmp, path)
     except BaseException:
         if os.path.exists(tmp):

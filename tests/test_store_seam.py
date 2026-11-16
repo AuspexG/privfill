@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import unittest
+import zipfile
 from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -125,11 +126,16 @@ class TestCommandsThroughDouble(unittest.TestCase):
         self.assertEqual(rc, 2, out)
         self.assertFalse(os.path.exists(self.path("o.md")))
 
-    def test_run_substitutes_from_the_store(self):
-        self.write("x_{{name}}.txt", "")
-        rc, out = self.run_main("run", "--", "mv", "raw:" + self.path("x_{{name}}.txt"), self.path("x_{{name}}.txt"))
+    def test_pack_names_the_archive_from_the_store(self):
+        self.write("a.txt", "alpha")
+        self.write("b.txt", "beta")
+        rc, out = self.run_main("--json", "pack", self.path("hw_{{name}}.zip"), self.path("a.txt"), self.path("b.txt"))
         self.assertEqual(rc, 0, out)
-        self.assertTrue(os.path.exists(self.path("x_Jane Roe.txt")))
+        self.assertNotIn("Jane Roe", out)
+        res = json.loads(out)
+        self.assertEqual((res["packed"], res["used"]), (2, {"name": 1}))
+        with zipfile.ZipFile(self.path("hw_Jane Roe.zip")) as z:
+            self.assertEqual({n: z.read(n) for n in z.namelist()}, {"a.txt": b"alpha", "b.txt": b"beta"})
 
     def test_json_extras_do_not_leak_between_calls(self):
         self.run_main("--json", "keys")

@@ -2,7 +2,8 @@
 # Install privfill.
 #   ./install.sh            program to ~/.privfill, data file created there
 #   ./install.sh --skill    also install the Claude Code skill to ~/.claude/skills/privfill
-# Only the program is copied. An existing data file is never read or overwritten.
+# Only the program is copied: the launcher privfill.py and the privfill/ package beside it.
+# An existing data file is never read or overwritten.
 set -eu
 
 SRC="$(cd "$(dirname "$0")" && pwd)"
@@ -11,7 +12,7 @@ SKILL=0
 for a in "$@"; do
     case "$a" in
         --skill) SKILL=1 ;;
-        -h|--help) sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $a" >&2; exit 1 ;;
     esac
 done
@@ -22,10 +23,18 @@ for c in /usr/bin/python3 python3; do
 done
 [ -n "$PY" ] || { echo "python3 was not found" >&2; exit 1; }
 
+# Copy the launcher and the package it needs into directory $1.
+install_program() {
+    mkdir -p "$1/privfill"
+    rm -f "$1"/privfill/*.py  # modules dropped by a newer version must not linger
+    cp "$SRC/privfill.py" "$1/privfill.py"
+    cp "$SRC"/privfill/*.py "$1/privfill/"
+    chmod 700 "$1/privfill.py" "$1/privfill"
+}
+
 mkdir -p "$DEST"
 chmod 700 "$DEST"
-cp "$SRC/privfill.py" "$DEST/privfill.py"
-chmod 700 "$DEST/privfill.py"
+install_program "$DEST"
 PRIVFILL_DATA="$DEST/profile.md" "$PY" "$DEST/privfill.py" init
 echo "Program:   $DEST/privfill.py"
 echo "Data file: $DEST/profile.md"
@@ -34,8 +43,7 @@ if [ "$SKILL" = 1 ]; then
     SK="$HOME/.claude/skills/privfill"
     mkdir -p "$SK"
     cp "$SRC/skills/privfill/SKILL.md" "$SK/SKILL.md"
-    cp "$SRC/privfill.py" "$SK/privfill.py"
-    chmod 700 "$SK/privfill.py"
+    install_program "$SK"
     echo "Skill:     $SK"
 fi
 

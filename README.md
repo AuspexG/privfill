@@ -93,7 +93,7 @@ Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text 
 | Questions, hints, item names | you | whatever the assistant writes; any language works |
 | Command output, `SKILL.md`, `PROTOCOL.md` | the assistant | English only |
 
-Keeping the assistant-facing text in one language means there is one set of rules to maintain. Adding a form language is one entry per string in the `UI` table at the top of `privfill.py`.
+Keeping the assistant-facing text in one language means there is one set of rules to maintain. Adding a form language is one entry per string in the `UI` table in `privfill/texts.py`.
 
 ## What it protects, and what it does not
 
@@ -105,13 +105,30 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 - The data file is plain text with mode 600. That keeps out other users of the machine, not other programs running as you. It is not encrypted.
 - The `id_card` type validates PRC resident ID numbers only. Use `text` with a `pattern` for other documents.
 
+## Layout
+
+`privfill.py` is a launcher; the program is the `privfill/` package beside it, and the two are installed together.
+
+| Module | Holds |
+|---|---|
+| `cli.py` | the commands and what they report |
+| `store.py` | the `Store` interface (create, list names, read, write and delete one item) and its only backend, the plain-text data file |
+| `normalize.py` | the rules that tidy each type of answer |
+| `protocol.py` | validation of the entry protocol, and its summary |
+| `form.py` | the entry form (PyQt6, with a Tk fallback) |
+| `filling.py` | placeholders, formats and the file types they are filled in |
+| `texts.py` | the usage text and the form's strings in each language |
+| `atomic.py` | replacing a file in one step |
+
+Commands reach items only through a `Store`, so another way of keeping them needs a new backend in `store.py` and nothing else.
+
 ## Tests
 
 ```
 python3 -m unittest discover -s tests
 ```
 
-The tests use fake data in a temporary directory and never open a window.
+The tests use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`.
 
 ## License
 

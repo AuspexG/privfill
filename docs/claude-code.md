@@ -10,7 +10,7 @@ Install the skill:
 ./install.sh --skill
 ```
 
-It copies `skills/privfill/SKILL.md` and the program to `~/.claude/skills/privfill/`. Claude loads the skill when a task involves personal details. Start a new session after installing.
+It copies `skills/privfill/SKILL.md` and the program (`privfill.py` and the `privfill/` package) to `~/.claude/skills/privfill/`. Claude loads the skill when a task involves personal details. Start a new session after installing.
 
 ## 2. Permissions
 

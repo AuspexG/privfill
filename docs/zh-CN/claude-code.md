@@ -10,7 +10,7 @@
 ./install.sh --skill
 ```
 
-它会把 `skills/privfill/SKILL.md` 和程序一起复制到 `~/.claude/skills/privfill/`。任务涉及个人信息时 Claude 会自动加载这个 skill。安装后新开一个会话。
+它会把 `skills/privfill/SKILL.md` 和程序（`privfill.py` 与 `privfill/` 包）一起复制到 `~/.claude/skills/privfill/`。任务涉及个人信息时 Claude 会自动加载这个 skill。安装后新开一个会话。
 
 skill 的说明是英文的，因为它是写给 Claude 读的，不是给你读的；表单界面会按系统语言显示中文。
 

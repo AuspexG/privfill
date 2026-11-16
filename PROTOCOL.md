@@ -135,7 +135,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | 3 | The person cancelled the form |
 | 4 | The entry protocol is invalid |
 
-The program never starts another program, so no value is ever placed on a command line. There is no command that runs one with placeholders in its arguments; use `render` for naming and `pack` for bundling.
+Placeholders are filled only inside the program, which never passes a value to another program, so no value is ever placed on a command line. There is no command that runs a program with placeholders in its arguments; use `render` for naming and `pack` for bundling.
 
 ### 4.2 JSON output
 

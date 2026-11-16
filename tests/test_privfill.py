@@ -442,9 +442,15 @@ class TestFill(Case):
         self.assertIn("Available items: name,", out)
         rc, out = self.tool("pack", self.path("{{name|YYYY}}.zip"), self.path("notes.txt"))
         self.assertEqual(rc, 2, out)
+        self.assertIn("Available items: name,", out)
         rc, out = self.tool("pack", self.path("{{name}}.zip"), self.path("notes.txt"), self.path("absent.txt"))
         self.assertEqual(rc, 1, out)
         self.assert_no_values(out)
+        if os.geteuid():  # a file that cannot be read fails while the archive is being written
+            os.chmod(self.path("notes.txt"), 0)
+            rc, out = self.tool("pack", self.path("{{name}}.zip"), self.path("notes.txt"))
+            self.assertEqual(rc, 1, out)
+            self.assert_no_values(out)
         self.assertEqual(sorted(os.listdir(self.dir)), ["notes.txt", "store"])
 
     def test_pack_refuses_what_it_cannot_name_and_replaces_whole_archives(self):

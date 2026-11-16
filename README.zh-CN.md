@@ -81,7 +81,7 @@ privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py protocol                   打印录入协议摘要
 ```
 
-支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。程序不会启动别的程序，所以个人信息不会出现在任何命令行上。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
+支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。程序不会把个人信息交给别的程序，所以它不会出现在任何命令行上。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
 
 ## 语言
 

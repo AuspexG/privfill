@@ -24,7 +24,7 @@ The assistant sees item names, counts and exit codes. It does not see values.
 Requires Python 3.8 or later. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
 
 ```
-git clone https://github.com/OWNER/privfill.git
+git clone https://github.com/AuspexG/privfill.git
 cd privfill
 ./install.sh            # program and data file in ~/.privfill
 ./install.sh --skill    # also install the Claude Code skill

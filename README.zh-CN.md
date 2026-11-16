@@ -24,7 +24,7 @@
 需要 Python 3.8 以上。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
 
 ```
-git clone https://github.com/OWNER/privfill.git
+git clone https://github.com/AuspexG/privfill.git
 cd privfill
 ./install.sh            # 程序和数据文件放在 ~/.privfill
 ./install.sh --skill    # 同时安装 Claude Code skill

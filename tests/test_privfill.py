@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 import zipfile
+from xml.etree import ElementTree
 
 TOOL = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "privfill.py")
 SAMPLE_ID = "11010519491231002X"  # the specimen number used in published examples; belongs to no one
@@ -37,11 +38,20 @@ ANSWERS = {
     "size": "M",
     "地址": "1 Example  Road|Unit 2",
 }
+W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+S = "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+A = "http://schemas.openxmlformats.org/drawingml/2006/main"
+P = "http://schemas.openxmlformats.org/presentationml/2006/main"
 VALUES = ["Jane Roe", "2005-03-04", "13800138000", SAMPLE_ID, "jane@example.com", "Example Road"]
 
 
 def read(path):
     with open(path, encoding="utf8") as f:
+        return f.read()
+
+
+def read_bytes(path):
+    with open(path, "rb") as f:
         return f.read()
 
 
@@ -236,6 +246,148 @@ class TestFill(Case):
             self.assertIsNone(z.testzip())
             self.assertEqual(z.read("word/document.xml").decode(), "<d><t>A&amp;B &lt;R&amp;D&gt;</t></d>")
             self.assertEqual(z.read("word/media/x.png"), b"\x89PNG{{x}}")
+
+    def office(self, name, parts):
+        with zipfile.ZipFile(self.path(name), "w") as z:
+            for part, xml in parts.items():
+                z.writestr(part, xml)
+        return self.path(name)
+
+    def part(self, name, part):
+        with zipfile.ZipFile(self.path(name)) as z:
+            self.assertIsNone(z.testzip())
+            xml = z.read(part).decode()
+        ElementTree.fromstring(xml)  # the part is still well-formed
+        return xml
+
+    def test_docx_placeholder_split_over_runs_keeps_formatting(self):
+        self.seed()
+        doc = (f'<w:document xmlns:w="{W}"><w:body><w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
+               '<w:r><w:t xml:space="preserve">Name: </w:t></w:r>'
+               '<w:r><w:rPr><w:b/></w:rPr><w:t>{{na</w:t></w:r>'
+               '<w:proofErr w:type="spellStart"/><w:r><w:rPr><w:i/></w:rPr><w:t>me</w:t></w:r>'
+               '<w:r><w:t>}} born {{</w:t></w:r><w:r><w:t>birthday|YYYY/MM/DD}}.</w:t></w:r>'
+               '</w:p><w:p/><w:p><w:r><w:t>plain</w:t></w:r></w:p></w:body></w:document>')
+        rc, out = self.tool("--json", "fill", self.office("s.docx", {"word/document.xml": doc}))
+        self.assertEqual(rc, 0, out)
+        self.assert_no_values(out)
+        self.assertEqual(json.loads(out)["files"][0]["used"], {"name": 1, "birthday": 1})
+        self.assertEqual(self.part("s.docx", "word/document.xml"), (
+            f'<w:document xmlns:w="{W}"><w:body><w:p><w:pPr><w:jc w:val="center"/></w:pPr>'
+            '<w:r><w:t xml:space="preserve">Name: </w:t></w:r>'
+            '<w:r><w:rPr><w:b/></w:rPr><w:t>Jane Roe</w:t></w:r>'
+            '<w:proofErr w:type="spellStart"/><w:r><w:rPr><w:i/></w:rPr><w:t></w:t></w:r>'
+            '<w:r><w:t xml:space="preserve"> born 2005/03/04</w:t></w:r><w:r><w:t>.</w:t></w:r>'
+            '</w:p><w:p/><w:p><w:r><w:t>plain</w:t></w:r></w:p></w:body></w:document>'))
+
+    def test_docx_headers_footers_and_text_boxes(self):
+        self.seed()
+        box = ('<w:p><w:r><w:pict><w:txbxContent><w:p><w:r><w:t>{{</w:t></w:r><w:r><w:t>phone}}</w:t></w:r></w:p>'
+               '</w:txbxContent></w:pict></w:r><w:r><w:t>{{na</w:t></w:r><w:r><w:t>me}}</w:t></w:r></w:p>')
+        name = self.office("h.docx", {
+            "word/document.xml": f'<w:document xmlns:w="{W}"><w:body>{box}</w:body></w:document>',
+            "word/header1.xml": f'<w:hdr xmlns:w="{W}"><w:p><w:r><w:t>{{{{em</w:t></w:r><w:r><w:t>ail}}}}</w:t></w:r></w:p></w:hdr>',
+            "word/footer1.xml": f'<w:ftr xmlns:w="{W}"><w:p><w:r><w:t>{{{{</w:t></w:r><w:r><w:t>name</w:t></w:r><w:r><w:t>}}}}</w:t></w:r></w:p></w:ftr>',
+        })
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        self.assert_no_values(out)
+        body = self.part("h.docx", "word/document.xml")
+        self.assertIn("<w:txbxContent><w:p><w:r><w:t>13800138000</w:t></w:r><w:r><w:t></w:t></w:r></w:p>", body)
+        self.assertIn("<w:r><w:t>Jane Roe</w:t></w:r><w:r><w:t></w:t></w:r></w:p></w:body>", body)
+        self.assertIn("<w:t>jane@example.com</w:t>", self.part("h.docx", "word/header1.xml"))
+        self.assertIn("<w:t>Jane Roe</w:t>", self.part("h.docx", "word/footer1.xml"))
+
+    def test_placeholders_are_not_joined_across_paragraphs(self):
+        self.seed()
+        doc = (f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>{{{{na</w:t></w:r></w:p><w:p><w:r><w:t>me}}}}</w:t></w:r>'
+               '<w:r><w:delText>{{na</w:delText></w:r><w:r><w:delText>me}}</w:delText></w:r></w:p></w:body></w:document>')
+        name = self.office("p.docx", {"word/document.xml": doc})
+        before = read_bytes(name)
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("no placeholders", out)
+        self.assertEqual(read_bytes(name), before)
+
+    def test_xlsx_shared_strings_split_over_runs(self):
+        self.seed()
+        sst = (f'<sst xmlns="{S}" count="2" uniqueCount="2"><si><t>plain</t></si>'
+               '<si><r><t>Tel {{ph</t></r><r><rPr><b/></rPr><t>one}} ok</t></r>'
+               '<rPh sb="0" eb="1"><t>{{ph</t></rPh><phoneticPr fontId="1"/></si></sst>')
+        rc, out = self.tool("--json", "fill", self.office("b.xlsx", {"xl/sharedStrings.xml": sst}))
+        self.assertEqual(rc, 0, out)
+        self.assert_no_values(out)
+        self.assertEqual(json.loads(out)["files"][0]["used"], {"phone": 1})
+        self.assertEqual(self.part("b.xlsx", "xl/sharedStrings.xml"), (
+            f'<sst xmlns="{S}" count="2" uniqueCount="2"><si><t>plain</t></si>'
+            '<si><r><t>Tel 13800138000</t></r><r><rPr><b/></rPr><t xml:space="preserve"> ok</t></r>'
+            '<rPh sb="0" eb="1"><t>{{ph</t></rPh><phoneticPr fontId="1"/></si></sst>'))
+
+    def test_pptx_text_runs_split_over_runs(self):
+        self.seed()
+        slide = (f'<p:sld xmlns:a="{A}" xmlns:p="{P}"><p:cSld><p:spTree><p:sp><p:txBody><a:bodyPr/>'
+                 '<a:p><a:r><a:rPr lang="en-US" b="1"/><a:t>Hi {{</a:t></a:r><a:r><a:rPr lang="en-US"/><a:t>name</a:t></a:r>'
+                 '<a:r><a:rPr lang="en-US" i="1"/><a:t>}} !</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>')
+        rc, out = self.tool("fill", self.office("s.pptx", {"ppt/slides/slide1.xml": slide}))
+        self.assertEqual(rc, 0, out)
+        self.assert_no_values(out)
+        self.assertEqual(self.part("s.pptx", "ppt/slides/slide1.xml"), (
+            f'<p:sld xmlns:a="{A}" xmlns:p="{P}"><p:cSld><p:spTree><p:sp><p:txBody><a:bodyPr/>'
+            '<a:p><a:r><a:rPr lang="en-US" b="1"/><a:t>Hi Jane Roe</a:t></a:r><a:r><a:rPr lang="en-US"/><a:t></a:t></a:r>'
+            '<a:r><a:rPr lang="en-US" i="1"/><a:t> !</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>'))
+
+    def test_office_special_characters_stay_valid(self):
+        rc, out = self.tool("form", '{"fields": [{"name": "org"}, {"name": "R&D"}]}',
+                            answers={"org": "A&B <R&D> \"q\" 'a' {{org}}", "R&D": "x"})
+        self.assertEqual(rc, 0, out)
+        doc = (f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>&lt;{{{{o</w:t></w:r><w:r><w:t>rg}}}}&gt; &#123;{{R&amp;</w:t></w:r>'
+               '<w:r><w:t>D}}</w:t></w:r></w:p></w:body></w:document>')
+        rels = '<Relationships><Relationship Id="r1" Target="https://example.com/?q={{org}}" TargetMode="External"/></Relationships>'
+        name = self.office("e.docx", {"word/document.xml": doc, "word/_rels/document.xml.rels": rels})
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        root = ElementTree.fromstring(self.part("e.docx", "word/document.xml"))
+        self.assertEqual("".join(root.itertext()), "<A&B <R&D> \"q\" 'a' {{org}}> x")  # &#123; is a visible brace
+        rel = ElementTree.fromstring(self.part("e.docx", "word/_rels/document.xml.rels"))[0]
+        self.assertEqual(rel.get("Target"), "https://example.com/?q=A&B <R&D> \"q\" 'a' {{org}}")
+
+    def test_office_without_placeholders_is_byte_for_byte_untouched(self):
+        self.seed()
+        doc = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>{{ no }} placeholders</w:t></w:r><w:r><w:t>here</w:t></w:r></w:p></w:body></w:document>'
+        name = self.office("n.docx", {"word/document.xml": doc})
+        before = read_bytes(name)
+        stat = os.stat(name)
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        self.assertIn("no placeholders", out)
+        self.assertEqual(read_bytes(name), before)
+        self.assertEqual(os.stat(name).st_mtime_ns, stat.st_mtime_ns)
+        rc, out = self.tool("render", name, self.path("copy.docx"))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(read_bytes(self.path("copy.docx")), before)
+
+    def test_office_parts_without_placeholders_keep_their_bytes(self):
+        self.seed()
+        other = f'<w:styles xmlns:w="{W}"><w:style w:styleId="a&amp;b"/>\r\n<w:t>x</w:t ></w:styles>'
+        doc = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>&#65;&#13;{{{{</w:t></w:r><w:r><w:t>name}}}}</w:t></w:r></w:p><w:p><w:r><w:t>&#66;&quot;</w:t></w:r></w:p></w:body></w:document>'
+        name = self.office("k.docx", {"word/document.xml": doc, "word/styles.xml": other})
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(self.part("k.docx", "word/styles.xml"), other)
+        body = self.part("k.docx", "word/document.xml")
+        self.assertIn("<w:t>A&#13;Jane Roe</w:t>", body)
+        self.assertIn("<w:t>&#66;&quot;</w:t>", body)  # an untouched text node is not rewritten
+
+    def test_split_placeholder_for_unknown_item_leaves_file_untouched(self):
+        self.seed()
+        doc = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>{{{{name}}}} {{{{pass</w:t></w:r><w:r><w:t>port}}}}</w:t></w:r></w:p></w:body></w:document>'
+        name = self.office("u.docx", {"word/document.xml": doc})
+        before = read_bytes(name)
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 2, out)
+        self.assertIn("'passport'", out)
+        self.assert_no_values(out)
+        self.assertEqual(read_bytes(name), before)
 
     def test_notebook_stays_valid_json(self):
         rc, out = self.tool("form", '{"fields": [{"name": "note"}]}', answers={"note": 'said "ok" \\ done'})

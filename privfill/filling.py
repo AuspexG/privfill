@@ -31,20 +31,98 @@ def apply_format(value, fmt):
     raise Missing(f"format '{fmt}' does not apply to this item (date formats need a date item)")
 
 
-def sub(text, store, enc=lambda s: s, counter=None):
-    """Fill the placeholders in text with items read from the store, one read per placeholder."""
-    def rep(m):
-        key, _, fmt = m.group(1).partition("|")
-        key = key.strip()
-        value = store.read(key)
-        if value is None:
-            raise Missing(f"there is no item named '{key}'")
-        v = apply_format(value, fmt) if fmt else value
-        if counter is not None:
-            counter[key] = counter.get(key, 0) + 1
-        return enc(v)
+def resolve(m, store, counter=None):
+    """The value for one placeholder match, read from the store."""
+    key, _, fmt = m.group(1).partition("|")
+    key = key.strip()
+    value = store.read(key)
+    if value is None:
+        raise Missing(f"there is no item named '{key}'")
+    v = apply_format(value, fmt) if fmt else value
+    if counter is not None:
+        counter[key] = counter.get(key, 0) + 1
+    return v
 
-    return PH.sub(rep, text)
+
+def sub(text, store, enc=lambda s: s, counter=None, pattern=PH):
+    """Fill the placeholders in text with items read from the store, one read per placeholder."""
+    return pattern.sub(lambda m: enc(resolve(m, store, counter)), text)
+
+
+# Office documents. A word processor splits visible text into several runs whenever formatting,
+# spell-check or editing history intervenes, so a placeholder is looked for in the joined text of
+# each paragraph, not in the raw XML. The XML is edited as text, never re-serialized, so everything
+# that holds no placeholder keeps its bytes.
+BLOCKS = "p|si|is|rPh|text"  # a Word or slide paragraph, a workbook string, its phonetic text, a comment
+XML_TOKEN = re.compile(
+    rf"<(?:\w+:)?(?:{BLOCKS})(?=[\s/>])[^>]*>"  # a block opens (or is empty: <w:p/>)
+    rf"|(?P<close></(?:\w+:)?(?:{BLOCKS})\s*>)"
+    r"|<(?P<tag>(?:(?P<prefix>\w+):)?t)(?P<attrs>(?:\s[^>]*)?)(?<!/)>(?P<body>[^<]*)</(?P=tag)\s*>",  # a text node
+    re.S)
+PH_MARKUP = re.compile(r"\{\{\s*([^{}<\s][^{}<]*?)\s*\}\}")  # outside text nodes: never across a tag
+XML_ENTITY = re.compile(r"&(?:#(\d+)|#x([0-9a-fA-F]+)|(lt|gt|amp|quot|apos));")
+XML_NAMED = {"lt": "<", "gt": ">", "amp": "&", "quot": '"', "apos": "'"}
+
+
+def xml_unescape(s):
+    return XML_ENTITY.sub(lambda m: chr(int(m.group(1))) if m.group(1) else chr(int(m.group(2), 16)) if m.group(2)
+                          else XML_NAMED[m.group(3)], s)
+
+
+def xml_escape(s):
+    return escape(s, {'"': "&quot;"})  # safe in text and in attribute values alike
+
+
+def fill_block(nodes, store, counter):
+    """Fill the placeholders in the joined text of one block. nodes: [match, new text or None]."""
+    texts = [xml_unescape(m.group("body")) for m, _ in nodes]
+    starts = [0]
+    for t in texts:
+        starts.append(starts[-1] + len(t))
+    hits = [(m.start(), m.end(), resolve(m, store, counter)) for m in PH.finditer("".join(texts))]
+    for s, e, value in reversed(hits):  # right to left, so earlier offsets stay valid
+        first = True
+        for i, node in enumerate(nodes):
+            lo, hi = max(s, starts[i]), min(e, starts[i + 1])
+            if lo >= hi:
+                continue
+            cur = texts[i] if node[1] is None else node[1]
+            # The value goes where the placeholder begins and takes that run's formatting.
+            node[1] = cur[:lo - starts[i]] + (value if first else "") + cur[hi - starts[i]:]
+            first = False
+
+
+def text_node(m, text):
+    attrs = m.group("attrs")
+    # Word and Excel drop leading and trailing spaces unless told otherwise; slide text (a:t) keeps them.
+    if text != text.strip() and m.group("prefix") != "a" and "xml:space" not in attrs:
+        attrs += ' xml:space="preserve"'
+    return f"<{m.group('tag')}{attrs}>{escape(text, {chr(13): '&#13;'})}</{m.group('tag')}>"  # a bare CR would be read as LF
+
+
+def sub_office_xml(xml, store, counter):
+    """Fill one XML part: paragraph by paragraph for visible text, plainly for the rest (link targets, properties)."""
+    parts, stack, pos = [], [[]], 0  # parts: markup strings and [match, new text] text nodes
+    for m in XML_TOKEN.finditer(xml):
+        if m.group("tag"):
+            parts.append(xml[pos:m.start()])
+            pos = m.end()
+            node = [m, None]
+            parts.append(node)
+            if len(stack) == 1:  # text outside any block stands alone
+                fill_block([node], store, counter)
+            else:
+                stack[-1].append(node)
+        elif m.group("close"):
+            if len(stack) > 1:
+                fill_block(stack.pop(), store, counter)
+        elif not m.group().endswith("/>"):
+            stack.append([])
+    for nodes in stack[1:]:
+        fill_block(nodes, store, counter)
+    parts.append(xml[pos:])
+    return "".join(sub(p, store, xml_escape, counter, PH_MARKUP) if isinstance(p, str)
+                   else p[0].group() if p[1] is None else text_node(p[0], p[1]) for p in parts)
 
 
 def walk(obj, store, counter):
@@ -66,7 +144,10 @@ def fill_file(path, store):
         out = []
         for info, raw in items:
             if info.filename.endswith((".xml", ".rels")):
-                raw = sub(raw.decode("utf8"), store, enc=escape, counter=counter).encode("utf8")
+                text = raw.decode("utf8")
+                filled = sub_office_xml(text, store, counter)
+                if filled != text:
+                    raw = filled.encode("utf8")
             out.append((info, raw))
 
         def w(tmp):

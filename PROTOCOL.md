@@ -105,7 +105,7 @@ A format that does not apply to the item fails with exit code 2.
 
 | File | Handling |
 |---|---|
-| `.docx`, `.xlsx`, `.pptx` | Text of the `.xml` and `.rels` parts is substituted with XML escaping; images and other binary parts are untouched. A placeholder must sit inside a single text run. |
+| `.docx`, `.xlsx`, `.pptx` | Placeholders are found in the visible text of each paragraph (Word, including headers, footers and text boxes), each cell string or comment (Excel) and each text paragraph (PowerPoint), so a placeholder may be split over several text runs; the value takes the formatting of the run where the placeholder begins. A placeholder never spans two paragraphs. Elsewhere in the `.xml` and `.rels` parts (link targets, document properties) placeholders are substituted as plain text. Values are XML-escaped; images and other binary parts, and parts without placeholders, are untouched. |
 | `.ipynb`, `.json` | Parsed, every string substituted, written back. |
 | anything else | Substituted as UTF-8 text. |
 | file names, command arguments | The output path of `render` and the arguments of `run` may contain placeholders. |

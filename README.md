@@ -83,7 +83,7 @@ privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py protocol                   print the entry protocol summary
 ```
 
-Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never starts another program, so a detail is never put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
+Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never passes a detail to another program, so none is ever put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
 
 ## Languages
 

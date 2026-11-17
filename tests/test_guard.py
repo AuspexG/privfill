@@ -158,6 +158,19 @@ class TestGuard(GuardCase):
         self.assertEqual((rc, out), (DENY, ""))
         self.assertIn("registry", err)
 
+    def test_the_answer_is_the_exit_code_alone_whatever_the_vault_or_the_flags(self):
+        payload = json.dumps({"cwd": self.dir, "tool_name": "Read", "tool_input": {"file_path": self.path("out/letter.txt")}})
+        for env in (self.env, dict(self.env, PRIVFILL_VAULT=self.path("elsewhere/vault.json"))):
+            for args in (["guard"], ["--json", "guard"]):
+                p = subprocess.run([sys.executable, TOOL, *args], input=payload, env=env, cwd=self.dir,
+                                   capture_output=True, text=True)
+                self.assertEqual(p.stdout, "", args)
+                self.assertEqual(p.returncode, DENY if env is self.env else ALLOW, args)  # no registry beside the other vault
+        with open(self.data, "w", encoding="utf8") as f:
+            f.write("not a vault")
+        p = subprocess.run([sys.executable, TOOL, "guard"], input=payload, env=self.env, cwd=self.dir, capture_output=True, text=True)
+        self.assertEqual((p.returncode, p.stdout), (DENY, ""))
+
     def test_the_guard_needs_no_passphrase(self):
         env = {k: v for k, v in self.env.items() if k != "PRIVFILL_PASSPHRASE_TEST"}
         payload = {"cwd": self.dir, "tool_name": "Read", "tool_input": {"file_path": self.path("master.txt")}}

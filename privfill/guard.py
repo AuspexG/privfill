@@ -4,6 +4,8 @@ An assistant tool runs `privfill.py guard` before each tool call, with the call 
 standard input (format in docs/guard.md). The answer is the exit code: 0 allows, 2 denies. A
 denial prints one line that names the kind of thing the call would touch, never a path or a value.
 
+Exit codes other than these two never come from the guard itself: it answers before any store is opened.
+
 Denied: a call that reads, changes, lists or searches the data directory or a registered output,
 directly or through a shell command. Allowed: everything else, and this program's own commands.
 Whatever the guard cannot understand is denied.

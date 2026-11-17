@@ -126,7 +126,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `registry.py` | the record of which files were filled with real values |
 | `guard.py` | the decision whether a tool call may touch the data directory or an output ([docs/guard.md](docs/guard.md)) |
 
-Commands reach items only through a `Store`, so another way of keeping them needs a new backend and nothing else.
+Commands reach items only through a `Store`, so another way of keeping them needs a new backend and nothing else. A store that keeps its data in a directory says which in `directory`; the output registry lives there.
 
 ## Tests
 

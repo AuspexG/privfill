@@ -13,7 +13,7 @@ from .normalize import NORMS, Bad
 from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
 from .registry import FILE_NAME, Registry, RegistryError
-from .store import StoreError, default_store
+from .store import StoreError, default_store, vault_path
 from .texts import USAGE
 
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
@@ -72,7 +72,7 @@ def available(store):
     return "Available items: " + (", ".join(store.names()) or "(none yet)") + "."
 
 
-def registered(registry, path):
+def record_output(registry, path):
     """Record a file this command filled as an output. False if it could not be recorded."""
     try:
         if registry:
@@ -95,11 +95,6 @@ def run_cmd(argv, store, registry=None):
         print(PROTOCOL)
         RESULT.update(protocol=PROTOCOL_VERSION, types=list(NORMS), field_keys=sorted(FIELD_KEYS))
         return 0
-    if cmd == "guard":  # the answer is the exit code; nothing is printed but a path-free reason, on stderr
-        if registry is None:
-            print("Failed: this store has no data directory to guard.")
-            return 1
-        return run_guard(registry, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "privfill.py"))
     if cmd == "init":
         created = store.create()
         print("Created the vault." if created else "The vault already exists; left untouched.")
@@ -127,7 +122,7 @@ def run_cmd(argv, store, registry=None):
         for i, path in enumerate(argv[2:], 1):  # file names may hold personal details: refer to files by index
             try:
                 c = fill_file(path, store)
-                if c and not registered(registry, path):
+                if c and not record_output(registry, path):
                     RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": c})
                     print(f"File {i}: filled {used(c)}, but not registered as an output; the guard does not protect it.")
                     rc = rc or 1
@@ -161,8 +156,8 @@ def run_cmd(argv, store, registry=None):
         try:
             shutil.copy2(src, dst)
             c = fill_file(dst, store)
-            if registry:
-                registry.record(dst)  # an output that cannot be registered is not kept
+            if not record_output(registry, dst):
+                raise RegistryError("not registered")  # an output that cannot be registered is not kept
         except Missing as e:
             os.unlink(dst)
             print(f"Failed: {e}; nothing was written. {available(store)}")
@@ -189,7 +184,7 @@ def run_cmd(argv, store, registry=None):
             return 2
         try:
             pack(dst, files)
-            if not registered(registry, dst):
+            if not record_output(registry, dst):
                 os.unlink(dst)
                 print("Failed: the archive could not be registered as an output; nothing was written.")
                 return 1
@@ -215,11 +210,19 @@ def run_checked(argv, store, registry=None):
         return e.code
 
 
+def guard(registry=None):
+    """Answer a tool hook from standard input. Without a registry, the one beside the default vault."""
+    registry = registry or Registry(os.path.join(os.path.dirname(vault_path()), FILE_NAME))
+    return run_guard(registry, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "privfill.py"))
+
+
 def main(argv, store=None, registry=None):
     """Run one command. Items are read and written only through store (default: the vault).
 
     Outputs are recorded in registry (default: a file in the store's directory, if it has one).
     """
+    if argv[1:] and argv[1:3][-1] == "guard" and argv[1:3][0] in ("guard", "--json"):
+        return guard(registry)  # a hook needs the exit code alone: no store, no passphrase, no --json
     if store is None:
         store = default_store()
     if registry is None and getattr(store, "directory", None):

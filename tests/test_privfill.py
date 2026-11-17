@@ -46,6 +46,11 @@ def read(path):
         return f.read()
 
 
+def read_bytes(path):
+    with open(path, "rb") as f:
+        return f.read()
+
+
 class Case(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

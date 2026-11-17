@@ -345,6 +345,23 @@ class TestFill(Case):
         rel = ElementTree.fromstring(self.part("e.docx", "word/_rels/document.xml.rels"))[0]
         self.assertEqual(rel.get("Target"), "https://example.com/?q=A&B <R&D> \"q\" 'a' {{org}}")
 
+    def test_characters_xml_cannot_carry_are_left_out_of_office_files(self):
+        rc, out = self.tool("form", '{"fields": [{"name": "org"}]}', answers={"org": "A\x00B\x01C\ufffeD\x7fE"})
+        self.assertEqual(rc, 0, out)
+        doc = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>{{{{o</w:t></w:r><w:r><w:t>rg}}}}</w:t></w:r></w:p></w:body></w:document>'
+        rels = '<Relationships><Relationship Id="r1" Target="https://example.com/?q={{org}}" TargetMode="External"/></Relationships>'
+        name = self.office("c.docx", {"word/document.xml": doc, "word/_rels/document.xml.rels": rels})
+        rc, out = self.tool("fill", name)
+        self.assertEqual(rc, 0, out)
+        root = ElementTree.fromstring(self.part("c.docx", "word/document.xml"))
+        self.assertEqual("".join(root.itertext()), "ABCD\x7fE")  # U+007F is a legal XML character
+        rel = ElementTree.fromstring(self.part("c.docx", "word/_rels/document.xml.rels"))[0]
+        self.assertEqual(rel.get("Target"), "https://example.com/?q=ABCD\x7fE")
+        self.write("c.txt", "{{org}}")
+        rc, out = self.tool("fill", self.path("c.txt"))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(read_bytes(self.path("c.txt")), "A\x00B\x01C\ufffeD\x7fE".encode())  # plain text keeps them
+
     def test_office_without_placeholders_is_byte_for_byte_untouched(self):
         self.seed()
         doc = f'<w:document xmlns:w="{W}"><w:body><w:p><w:r><w:t>{{ no }} placeholders</w:t></w:r><w:r><w:t>here</w:t></w:r></w:p></w:body></w:document>'

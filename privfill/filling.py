@@ -69,7 +69,7 @@ def sub(text, store, enc=lambda s: s, counter=None, pattern=PH):
 # spell-check or editing history intervenes, so a placeholder is looked for in the joined text of
 # each paragraph, not in the raw XML. The XML is edited as text, never re-serialized, so everything
 # that holds no placeholder keeps its bytes.
-BLOCKS = "p|si|is|rPh|text"  # a Word or slide paragraph, a workbook string, its phonetic text, a comment
+BLOCKS = "p|si|is|rPh|text"  # a Word or slide paragraph, a shared or inline workbook string, its phonetic text, a comment
 XML_TOKEN = re.compile(
     rf"<(?:\w+:)?(?:{BLOCKS})(?=[\s/>])[^>]*>"  # a block opens (or is empty: <w:p/>)
     rf"|(?P<close></(?:\w+:)?(?:{BLOCKS})\s*>)"
@@ -77,6 +77,7 @@ XML_TOKEN = re.compile(
     re.S)
 PH_MARKUP = re.compile(r"\{\{\s*([^{}<\s][^{}<]*?)\s*\}\}")  # outside text nodes: never across a tag
 XML_ENTITY = re.compile(r"&(?:#(\d+)|#x([0-9a-fA-F]+)|(lt|gt|amp|quot|apos));")
+XML_UNFIT = re.compile("[^\t\n\r\x20-\ud7ff\ue000-\ufffd\U00010000-\U0010ffff]")  # outside XML 1.0's Char
 XML_NAMED = {"lt": "<", "gt": ">", "amp": "&", "quot": '"', "apos": "'"}
 
 
@@ -86,7 +87,8 @@ def xml_unescape(s):
 
 
 def xml_escape(s):
-    return escape(s, {'"': "&quot;"})  # safe in text and in attribute values alike
+    """Escaped for XML text and attribute values alike, without the characters XML cannot carry even escaped."""
+    return escape(XML_UNFIT.sub("", s), {'"': "&quot;", "\r": "&#13;"})  # a bare CR would be read as LF
 
 
 def fill_block(nodes, store, counter):
@@ -113,7 +115,7 @@ def text_node(m, text):
     # Word and Excel drop leading and trailing spaces unless told otherwise; slide text (a:t) keeps them.
     if text != text.strip() and m.group("prefix") != "a" and "xml:space" not in attrs:
         attrs += ' xml:space="preserve"'
-    return f"<{m.group('tag')}{attrs}>{escape(text, {chr(13): '&#13;'})}</{m.group('tag')}>"  # a bare CR would be read as LF
+    return f"<{m.group('tag')}{attrs}>{xml_escape(text)}</{m.group('tag')}>"
 
 
 def sub_office_xml(xml, store, counter):

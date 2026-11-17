@@ -136,6 +136,8 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | 3 | The person cancelled the form |
 | 4 | The entry protocol is invalid |
 
+If the activity log cannot be written after a command has done its work, the command reports that and exits with 1 (unless it already failed); its effect is not undone.
+
 The program never starts another program, so no value is ever placed on a command line. There is no command that runs one with placeholders in its arguments; use `render` for naming and `pack` for bundling.
 
 ### 4.2 JSON output

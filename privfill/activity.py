@@ -54,6 +54,14 @@ class ActivityLog:
         """All records, oldest first. Raises ValueError on a line that is not a record."""
         return [r for name in self._files() for r in self._read(name)]
 
+    def _last(self):
+        """The newest record, read from the newest file that has one."""
+        for name in reversed(self._files()):
+            recs = self._read(name)
+            if recs:
+                return recs[-1]
+        return None
+
     def _rotate(self):
         for n in range(self.keep - 1, 0, -1):
             src = self.path if n == 1 else f"{self.path}.{n - 1}"
@@ -69,8 +77,7 @@ class ActivityLog:
             fcntl.flock(lock, fcntl.LOCK_EX)  # two commands at once must not fork the chain
             if os.path.exists(self.path) and os.path.getsize(self.path) >= self.max_bytes:
                 self._rotate()
-            recs = self._records()
-            last = recs[-1] if recs else None
+            last = self._last()
             rec = {
                 "seq": last["seq"] + 1 if last else 1,
                 "time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -95,7 +102,9 @@ class ActivityLog:
             recs = self._records()
         except ValueError as e:
             return False, 0, f"the log is damaged: {e}"
-        prev = seq = None  # the oldest record kept is the start; everything after it must chain
+        rotated = os.path.exists(f"{self.path}.1")
+        # Once rotation has dropped records, the oldest one kept is the start; before that the log must begin at the beginning.
+        prev, seq = (None, None) if rotated else (GENESIS, 0)
         for n, rec in enumerate(recs, 1):
             body = {k: v for k, v in rec.items() if k != "hash"}
             if seal(body) != rec["hash"] or (prev is not None and (rec["prev"] != prev or rec["seq"] != seq + 1)):

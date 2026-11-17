@@ -76,6 +76,11 @@ class TestActivityLogModule(unittest.TestCase):
         self.put(ls)
         self.assertFalse(self.log.verify()[0])
 
+    def test_deleting_the_first_record_is_detected_when_nothing_was_rotated(self):
+        self.fill(3)
+        self.put(self.lines()[1:])
+        self.assertFalse(self.log.verify()[0])
+
     def test_garbage_line_is_detected(self):
         self.fill(2)
         self.put(self.lines() + ["not json"])

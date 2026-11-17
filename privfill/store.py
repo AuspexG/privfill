@@ -1,7 +1,8 @@
 """Where items live. Every read and write of an item goes through a Store.
 
 A Store is anything with the five methods and the label below; the commands know nothing else
-about storage. The only backend so far is FileStore, the plain-text data file.
+about storage. The commands use the encrypted vault (VaultStore, in vault.py). FileStore is the
+plain-text data file of earlier versions, kept so that its items can be moved into the vault.
 """
 import os
 import re
@@ -11,6 +12,32 @@ from .texts import HEADER_NAMES, ui
 
 LEGACY_NAME = "个人信息.md"  # file name used by early versions
 ROW = re.compile(r"^\|([^|]+)\|([^|]*)\|\s*$")
+
+
+class StoreError(Exception):
+    """A store could not do what was asked. The message is for the caller and never holds a value."""
+
+    code = 1  # the exit code of a command that stops on this error
+
+
+class Cancelled(StoreError):
+    """The person closed the unlock dialog."""
+
+    code = 3
+
+
+class Locked(StoreError):
+    """The store could not be unlocked: the unlock secret was wrong."""
+
+    code = 5
+
+
+class Damaged(StoreError):
+    """The store is unreadable, or something in it was altered after it was written."""
+
+
+class MissingLibrary(StoreError):
+    """A library the store depends on is not installed."""
 
 
 class Store:
@@ -30,8 +57,8 @@ class Store:
         """The value of one item, or None if there is no such item."""
         raise NotImplementedError
 
-    def write(self, name, value):
-        """Store one item. Returns True if it replaced an existing entry, False if it added one."""
+    def write(self, name, value, type="text"):
+        """Store one item of the given entry type. Returns True if it replaced an existing entry, False if it added one."""
         raise NotImplementedError
 
     def delete(self, name):
@@ -50,9 +77,22 @@ def data_path(program_dir):
     return os.path.join(os.path.expanduser("~"), ".privfill", "profile.md")
 
 
-def default_store(program):
-    """The data file, for the program started as the path `program`."""
-    return FileStore(data_path(os.path.dirname(os.path.abspath(program))))
+def vault_path():
+    """$PRIVFILL_VAULT, else ~/.privfill/vault.json."""
+    env = os.environ.get("PRIVFILL_VAULT")
+    if env:
+        return os.path.abspath(os.path.expanduser(env))
+    return os.path.join(os.path.expanduser("~"), ".privfill", "vault.json")
+
+
+def default_store():
+    """The vault, unlocked by a passphrase the person types into a local dialog."""
+    from .form import PASSPHRASE_TEST, ask_passphrase
+    from .vault import TEST_COST, PassphraseUnlock, VaultStore
+
+    # A passphrase taken from the environment protects nothing, so such a vault skips the slow derivation.
+    cost = {"cost": TEST_COST} if os.environ.get(PASSPHRASE_TEST) is not None else {}
+    return VaultStore(vault_path(), PassphraseUnlock(ask_passphrase, **cost))
 
 
 class FileStore(Store):
@@ -73,7 +113,7 @@ class FileStore(Store):
     def read(self, name):
         return self._load().get(name)
 
-    def write(self, name, value):
+    def write(self, name, value, type="text"):  # the data file has no place for the type
         self._ensure()
         lines = self._lines()
         row = f"| {name} | {value} |"

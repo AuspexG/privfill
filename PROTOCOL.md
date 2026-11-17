@@ -9,7 +9,7 @@ One principle runs through all of it: **values stay on the machine**. No command
 | Term | Meaning |
 |---|---|
 | Item | One personal detail: a name and a value, for example the item named `date of birth`. |
-| Data file | The local file holding all items. The caller must not read, edit or list it. |
+| Vault | The local encrypted file holding all items (format in `docs/vault.md`). The caller must not read, edit or list it. |
 | Entry protocol | The JSON the caller passes to `form`, describing the questions to ask the person. |
 | Placeholder | A marker in a document that stands for an item, written `{{item name}}`. |
 | Master | A document with placeholders and no real values. The caller works only on masters. |
@@ -73,7 +73,7 @@ Date parsing reads year, month, day in that order. All types except `text` first
 
 ### 2.3 Form behaviour
 
-- Items already in the data file are pre-filled. They appear only on the person's screen.
+- Items already in the vault are pre-filled. They appear only on the person's screen.
 - An item the person changes counts as updated; one left alone counts as unchanged; an empty optional field counts as skipped.
 - If a check fails, the form stays open and states the reason under the field.
 - If the person cancels or closes the window, nothing is saved and the exit code is 3.
@@ -108,7 +108,7 @@ A format that does not apply to the item fails with exit code 2.
 | `.docx`, `.xlsx`, `.pptx` | Placeholders are found in the visible text of each paragraph (Word, including headers, footers and text boxes), each cell string or comment (Excel) and each text paragraph (PowerPoint), so a placeholder may be split over several text runs; the value takes the formatting of the run where the placeholder begins. A placeholder never spans two paragraphs. Elsewhere in the `.xml` and `.rels` parts (link targets, document properties) placeholders are substituted as plain text. Values are XML-escaped; images and other binary parts, and parts without placeholders, are untouched. |
 | `.ipynb`, `.json` | Parsed, every string substituted, written back. |
 | anything else | Substituted as UTF-8 text. |
-| file names, command arguments | The output path of `render` and the arguments of `run` may contain placeholders. |
+| file names | The output path of `render` and every path given to `pack` may contain placeholders. |
 
 ## 4. Commands
 
@@ -116,14 +116,14 @@ No command prints a value. `privfill` stands for however the program is invoked,
 
 | Command | Effect |
 |---|---|
-| `privfill init` | Create an empty data file (mode 600). No-op if it exists. |
+| `privfill init` | Create an empty vault (mode 600); the person chooses its passphrase in a local dialog. No-op if it exists. |
 | `privfill keys` | List the stored item names. |
 | `privfill protocol` | Print a summary of the entry protocol. |
 | `privfill form '<JSON>'` or `form <file>` | Show a form described by an entry protocol. |
 | `privfill add <item>` | Enter one required `text` item. |
 | `privfill render <master> <output>` | Copy the master to the output path and fill it; the master stays untouched. |
 | `privfill fill <file>...` | Fill in place. This destroys the master, so use it only on throwaway copies. |
-| `privfill run -- <cmd> [args]...` | Substitute placeholders in the arguments, run the command with its output discarded, report its exit code. Arguments starting with `raw:` lose the prefix and are passed as they are. |
+| `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
 
 ### 4.1 Exit codes
 
@@ -134,8 +134,11 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | 2 | A placeholder names an item that does not exist, or a format does not apply |
 | 3 | The person cancelled the form |
 | 4 | The entry protocol is invalid |
+| 5 | The vault was not unlocked: the person entered a wrong passphrase |
 
-`run` returns the exit code of the command it started.
+Every command that reads or writes a value (`form`, `add`, `render`, `fill`, `pack`) makes the program ask the person for the vault passphrase in a local dialog; `keys` does not. The caller never supplies the passphrase. If the person closes the dialog the exit code is 3; after exit code 5, ask the person before trying again. A vault that is unreadable or was altered, and a missing encryption library, give exit code 1 with a message that says which.
+
+Placeholders are filled only inside the program, which never passes a value to another program, so no value is ever placed on a command line. There is no command that runs a program with placeholders in its arguments; use `render` for naming and `pack` for bundling.
 
 ### 4.2 JSON output
 
@@ -151,25 +154,25 @@ With `--json` before the subcommand, the output is one JSON object:
 | `form`, `add` | `items`: one entry per field with `name`, `status`, `type`, `placeholder`, `stored` |
 | `fill` | `files`: one entry per file with `index`, `ok`, `used` |
 | `render` | `used`: `{item name: count}` |
-| `run` | `used`, `exit_code` |
+| `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
 
-`status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the data file.
+`status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the vault.
 
-`fill` refers to files by index, not by name, because a file name may itself contain personal details.
+`fill` and `pack` refer to files by index, not by name, because a file name may itself contain personal details.
 
 ### 4.3 Environment
 
 | Variable | Meaning |
 |---|---|
-| `PRIVFILL_DATA` | Path of the data file. Default: `~/.privfill/profile.md`. |
+| `PRIVFILL_VAULT` | Path of the vault. Default: `~/.privfill/vault.json`. |
 | `PRIVFILL_LANG` | `en` or `zh` for the form text. Default: from the system locale. |
 
 Command output is always English, since it is read by the caller.
 
 ## 5. Rules for the caller
 
-1. Do not read, edit or list the data file or its directory.
+1. Do not read, edit or list the vault or its directory.
 2. Do not ask for values in conversation, and do not put values in a protocol or on a command line.
 3. Write, review and revise only masters. To change an output, change the master and render again.
 4. After rendering, do not read, compare or list the output or its directory. Judge the result by the reported counts and exit code, and leave the final check to the person.
@@ -183,10 +186,10 @@ It guarantees that, as long as the caller follows section 5, values do not appea
 
 It does not guarantee:
 
-- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read the data file or an output. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval.
+- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read an output, and can see the item names in the vault. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval.
 - Anything about details the person types into the conversation. Those have already been sent.
 - Where outputs go. Outputs are plain text.
-- Encryption at rest. The data file is plain text with mode 600, which keeps out other system users, not other programs running as the same user.
+- More than encryption at rest. The vault keeps values from anyone who reads the file without the passphrase. It does not hide item names, and it does not protect against a program that runs as the person while the vault is in use. The boundary is set out in `docs/vault.md`.
 
 ### 6.1 The process
 
@@ -207,9 +210,7 @@ No value appears in standard output, standard error or the JSON object, on failu
 - Files are referred to by index, never by name.
 - The program's own messages (an invalid protocol, an answer the form refused, a file that cannot be packed) are fixed texts that quote only what the caller wrote in the protocol.
 - A missing item or an unusable format is reported with the text of the placeholder, unless that text resembles a stored value, as it does when an output is filled a second time. It is then replaced by `(not shown: it may hold a value)`.
-- Any other error, expected or not, is reported by its type and never by its message; one the program did not expect reads `Failed: unexpected error (<type>)`, exit code 1. An interrupt (Ctrl-C) ends the command the same way, with no traceback.
-
-A name in the first column of a data file edited by hand is an item name and is printed as one. This is checked by `tests/test_no_value_escapes.py`, which gives every command corrupted and hostile input and searches the output for any four-character fragment of a stored value.
+- Any other error, expected or not, is reported by its type and never by its message; one the program did not expect reads `Failed: unexpected error (<type>)`, exit code 1. A vault that is damaged or will not unlock is reported by a fixed text. An interrupt (Ctrl-C) ends the command the same way, with no traceback.
 
 ## 7. Versioning
 

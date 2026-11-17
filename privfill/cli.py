@@ -12,7 +12,7 @@ from .hardening import harden
 from .normalize import NORMS, Bad
 from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
-from .store import default_store
+from .store import StoreError, default_store
 from .texts import USAGE
 
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
@@ -44,8 +44,9 @@ def cmd_form(spec, store):
     if out is None:
         print("Cancelled by the person; nothing was changed.")
         return 3
+    types = {f["name"]: f["type"] for f in spec["fields"]}
     changed = {k: v for k, v in out.items() if data.get(k) != v}
-    updated = {k: store.write(k, v) for k, v in changed.items()}
+    updated = {k: store.write(k, v, types[k]) for k, v in changed.items()}
     now = read_items(store, names)
     rc, items = 0, []
     for f in spec["fields"]:
@@ -115,7 +116,7 @@ def run_cmd(argv, store):
         return 0
     if cmd == "init":
         created = store.create()
-        print("Created the data file." if created else "The data file already exists; left untouched.")
+        print("Created the vault." if created else "The vault already exists; left untouched.")
         RESULT.update(created=created)
         return 0
     if cmd == "keys":
@@ -146,6 +147,8 @@ def run_cmd(argv, store):
                 RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
                 print(f"File {i}: failed, {missing(e, store)}; left untouched. {available(store)}")
                 rc = 2
+            except StoreError:
+                raise
             except Exception as e:
                 RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
                 print(f"File {i}: failed ({type(e).__name__}); left untouched.")
@@ -174,6 +177,8 @@ def run_cmd(argv, store):
         except Exception as e:
             if os.path.exists(dst) and os.path.abspath(dst) != os.path.abspath(src):
                 os.unlink(dst)
+            if isinstance(e, StoreError):
+                raise
             print(f"Failed ({type(e).__name__}); nothing was written.")
             return 1
         RESULT.update(used=c)
@@ -208,10 +213,15 @@ def run_without_traceback(argv, store):
 
     An exception's message or traceback can quote the data it was handling, so neither is ever
     printed: this is what keeps a value out of the output on the paths nobody thought of.
+    A store that cannot go on (locked, damaged, unlock cancelled) is a failure it does expect: a
+    StoreError's message never holds a value and is printed, with the error's own exit code.
     The store is opened here too (store=None: the default one), so that failing is covered as well.
     """
     try:
-        return run_cmd(argv, default_store(argv[0]) if store is None else store)
+        return run_cmd(argv, default_store() if store is None else store)
+    except StoreError as e:
+        print(f"Failed: {e}.")
+        return e.code
     except KeyboardInterrupt:
         print("Interrupted; the command did not finish.")
         return 1
@@ -221,7 +231,7 @@ def run_without_traceback(argv, store):
 
 
 def main(argv, store=None):
-    """Run one command. Items are read and written only through store (default: the data file)."""
+    """Run one command. Items are read and written only through store (default: the vault)."""
     harden()  # before anything personal is read
     RESULT.clear()
     if "--json" in argv[1:2]:

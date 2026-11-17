@@ -1,12 +1,13 @@
 """The Store seam: the commands driven in-process by a test double, and the file backend's contract.
 
 Fake data only. The double keeps items in memory, so these tests also show that no command
-reaches the data file by any other route: PRIVFILL_DATA points at a path that must never appear.
+reaches the vault by any other route: PRIVFILL_VAULT points at a path that must never appear.
 """
 import contextlib
 import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -19,6 +20,30 @@ from privfill.cli import main  # noqa: E402
 from privfill.store import FileStore  # noqa: E402
 
 
+STARTED = []  # process starts seen while WATCHING; an audit hook cannot be removed, so it is switched
+WATCHING = []
+PROCESS_EVENTS = ("subprocess.Popen", "os.system", "os.exec", "os.posix_spawn", "os.spawn", "os.fork", "os.forkpty")
+
+
+def note_process_start(event, args):
+    if WATCHING and event in PROCESS_EVENTS:
+        STARTED.append(event)
+
+
+sys.addaudithook(note_process_start)
+
+
+@contextlib.contextmanager
+def watch_process_starts():
+    """Yield the list of process starts that Python reports while the block runs."""
+    del STARTED[:]
+    WATCHING.append(True)
+    try:
+        yield STARTED
+    finally:
+        WATCHING.pop()
+
+
 class MemoryStore:
     """A Store that is not a file. It deliberately does not inherit from anything in privfill."""
 
@@ -26,6 +51,7 @@ class MemoryStore:
 
     def __init__(self, items=None):
         self.items = dict(items or {})
+        self.types = {}
         self.created = 0
 
     def create(self):
@@ -38,9 +64,10 @@ class MemoryStore:
     def read(self, name):
         return self.items.get(name)
 
-    def write(self, name, value):
+    def write(self, name, value, type="text"):
         replaced = name in self.items
         self.items[name] = value
+        self.types[name] = type
         return replaced
 
     def delete(self, name):
@@ -51,7 +78,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = self.tmp.name
-        self.data = os.path.join(self.dir, "never", "profile.md")
+        self.data = os.path.join(self.dir, "never", "vault.json")
         self.store = MemoryStore({"name": "Jane Roe", "birthday": "2005-03-04"})
 
     def tearDown(self):
@@ -59,7 +86,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
         self.tmp.cleanup()
 
     def run_main(self, *args, answers=None):
-        env = {"PRIVFILL_DATA": self.data, "PRIVFILL_LANG": "en"}
+        env = {"PRIVFILL_VAULT": self.data, "PRIVFILL_LANG": "en"}
         if answers is not None:
             env["PRIVFILL_FORM_TEST"] = json.dumps(answers)
         buf = io.StringIO()
@@ -96,6 +123,7 @@ class TestCommandsThroughDouble(unittest.TestCase):
                                 answers={"name": "Jane Roe", "birthday": "2006/1/2", "phone": "138 0013 8000"})
         self.assertEqual(rc, 0, out)
         self.assertEqual(self.store.items, {"name": "Jane Roe", "birthday": "2006-01-02", "phone": "13800138000"})
+        self.assertEqual(self.store.types, {"birthday": "date", "phone": "phone"})
         items = {i["name"]: (i["status"], i["stored"]) for i in json.loads(out)["items"]}
         self.assertEqual(items, {"name": ("unchanged", True), "birthday": ("updated", True),
                                  "phone": ("created", True), "email": ("skipped", False)})
@@ -137,6 +165,25 @@ class TestCommandsThroughDouble(unittest.TestCase):
         with zipfile.ZipFile(self.path("hw_Jane Roe.zip")) as z:
             self.assertEqual({n: z.read(n) for n in z.namelist()}, {"a.txt": b"alpha", "b.txt": b"beta"})
 
+    def test_no_command_starts_another_process(self):
+        with watch_process_starts() as started:  # the watch itself works
+            subprocess.run([sys.executable, "-c", ""], check=True)
+        self.assertTrue(started)
+        self.write("m_{{name}}.md", "{{name}} {{birthday|YYYY}}")
+        spec = json.dumps({"fields": [{"name": "name"}]})
+        with watch_process_starts() as started:
+            calls = [
+                self.run_main("init"), self.run_main("keys"), self.run_main("protocol"),
+                self.run_main("form", spec, answers={"name": "Jane Roe"}),
+                self.run_main("add", "name", answers={"name": "Jane Roe"}),
+                self.run_main("render", self.path("m_{{name}}.md"), self.path("o_{{name}}.md")),
+                self.run_main("fill", self.path("m_{{name}}.md")),
+                self.run_main("pack", self.path("{{name}}.zip"), self.path("o_{{name}}.md")),
+                self.run_main("run", "--", "echo", "{{name}}"),
+            ]
+        self.assertEqual([rc for rc, _ in calls], [0] * 8 + [1], calls)
+        self.assertEqual(started, [])
+
     def test_json_extras_do_not_leak_between_calls(self):
         self.run_main("--json", "keys")
         rc, out = self.run_main("--json", "init")
@@ -173,6 +220,8 @@ class TestFileStore(unittest.TestCase):
         self.assertEqual(self.store.read("city"), "Example Town")
         self.assertEqual(os.stat(self.path).st_mode & 0o777, 0o600)
         self.assertEqual(self.store.label, "profile.md")
+        with open(self.path, encoding="utf8") as f:
+            self.assertRegex(f.read(), r"\| (Item \| Value|项目 \| 内容) \|")
 
     def test_delete_removes_one_item_only(self):
         self.store.write("phone", "13800138000")

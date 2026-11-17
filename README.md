@@ -21,12 +21,12 @@ The assistant sees item names, counts and exit codes. It does not see values.
 
 ## Install
 
-Requires Python 3.8 or later. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
+Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora). The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
 
 ```
 git clone https://github.com/AuspexG/privfill.git
 cd privfill
-./install.sh            # program and data file in ~/.privfill
+./install.sh            # program in ~/.privfill; the vault is created there on first use
 ./install.sh --skill    # also install the Claude Code skill
 ```
 
@@ -73,17 +73,17 @@ The same stored detail can come out in different shapes, chosen by the assistant
 ## Commands
 
 ```
-privfill.py init                       create the data file
+privfill.py init                       create the vault
 privfill.py keys                       list item names
 privfill.py form '<JSON>' | <file>     show an entry form
 privfill.py add <item>                 enter one free-text item
 privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
-privfill.py run -- <cmd> [args]...     run a command with placeholders in its arguments
+privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py protocol                   print the entry protocol summary
 ```
 
-Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
+Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never passes a detail to another program, so none is ever put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
 
 ## Languages
 
@@ -99,10 +99,11 @@ Keeping the assistant-facing text in one language means there is one set of rule
 
 privfill keeps values out of everything the assistant sends and receives, **provided the assistant follows the rules**. It is a convention plus a tool, not a sandbox.
 
-- An assistant that can read files could read the data file or a filled output. Use your tool's permission system so that every access needs your approval; for Claude Code this takes three lines of settings.
+- An assistant that can read files could read a filled output, and could see the names of your items in the vault. Use your tool's permission system so that every access needs your approval; for Claude Code this takes three lines of settings.
 - Anything you type into the chat has already been sent. Use the form.
 - Filled outputs are ordinary files with your details in them. Where they go next is up to you.
-- The data file is plain text with mode 600. That keeps out other users of the machine, not other programs running as you. It is not encrypted.
+- Your details are stored in an encrypted vault, unlocked by a passphrase you type into a local window each time they are used. Someone who gets the file without the passphrase learns the item names, not the values. It does not protect against a program running as you while you type the passphrase, and a forgotten passphrase cannot be recovered. The format and the full boundary are in [docs/vault.md](docs/vault.md).
+- A plain-text `profile.md` from an earlier version is not read or migrated yet: enter the details again and remove the old file yourself.
 - The `id_card` type validates PRC resident ID numbers only. Use `text` with a `pattern` for other documents.
 
 ## Layout
@@ -112,16 +113,18 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | Module | Holds |
 |---|---|
 | `cli.py` | the commands and what they report |
-| `store.py` | the `Store` interface (create, list names, read, write and delete one item) and its only backend, the plain-text data file |
+| `store.py` | the `Store` interface (create, list names, read, write and delete one item), its errors, and the plain-text data file of earlier versions |
+| `vault.py` | the encrypted vault the commands use, and the unlock methods |
 | `normalize.py` | the rules that tidy each type of answer |
 | `protocol.py` | validation of the entry protocol, and its summary |
-| `form.py` | the entry form (PyQt6, with a Tk fallback) |
+| `form.py` | the entry form and the passphrase dialog (PyQt6, with a Tk fallback) |
 | `filling.py` | placeholders, formats and the file types they are filled in |
 | `texts.py` | the usage text and the form's strings in each language |
-| `atomic.py` | replacing a file in one step |
+| `packing.py` | bundling files into a zip archive |
+| `atomic.py` | writing or replacing a file in one step |
 | `hardening.py` | no core dumps, process not inspectable (see `PROTOCOL.md` 6.1) |
 
-Commands reach items only through a `Store`, so another way of keeping them needs a new backend in `store.py` and nothing else.
+Commands reach items only through a `Store`, so another way of keeping them needs a new backend and nothing else.
 
 ## Tests
 
@@ -129,7 +132,7 @@ Commands reach items only through a `Store`, so another way of keeping them need
 python3 -m unittest discover -s tests
 ```
 
-The tests use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`. `tests/test_no_value_escapes.py` feeds every command hostile input and checks that no fragment of a value is printed; a new command must be listed in `COMMANDS` in `privfill/cli.py` and given scenarios in that test file, or the suite fails.
+The tests need the `cryptography` library. They use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`. `tests/test_no_value_escapes.py` feeds every command hostile input and checks that no fragment of a value is printed; a new command must be listed in `COMMANDS` in `privfill/cli.py` and given scenarios in that test file, or the suite fails.
 
 ## License
 

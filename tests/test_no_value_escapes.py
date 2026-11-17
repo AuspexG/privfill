@@ -28,6 +28,7 @@ sys.path.insert(0, ROOT)
 
 from privfill.cli import COMMANDS  # noqa: E402
 
+PASSPHRASE = "plum-anvil-seventeen-kite"  # made up; typed by the test hook, never by a person
 FRAGMENT = 4  # a run of this many characters of a value counts as a leak
 
 SPEC = {"fields": [
@@ -66,15 +67,16 @@ SECRETS = sorted(set().union(*(fragments(v) for v in [*STORED.values(), *REFUSED
 
 
 class World:
-    """A temporary directory with a seeded data file and the broken things the scenarios point at."""
+    """A temporary directory with a seeded vault and the broken things the scenarios point at."""
 
     def __init__(self, case):
         self.case = case
         self.tmp = tempfile.TemporaryDirectory()
         self.dir = self.tmp.name
-        self.data = self.path("store", "profile.md")
+        self.data = self.path("store", "vault.json")
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("PRIVFILL_")}
-        self.env.update(PRIVFILL_DATA=self.data, PRIVFILL_LANG="en", QT_QPA_PLATFORM="offscreen")
+        self.env.update(PRIVFILL_VAULT=self.data, PRIVFILL_PASSPHRASE_TEST=PASSPHRASE, PRIVFILL_LANG="en",
+                        QT_QPA_PLATFORM="offscreen")
         rc, out, err = self.run_tool(["form", json.dumps(SPEC)], answers=STORED)
         case.assertEqual(rc, 0, "seeding failed")
         self.write("master.md", "{{name}} / {{birthday|YYYY.MM.DD}} / {{phone|last4}}\n")
@@ -122,7 +124,32 @@ class World:
     # Ways to break the store itself.
     def corrupt_store(self):
         with open(self.data, "ab") as f:
-            f.write(b"\n| broken | \xff\xfe\x80 |\n| name | | | |\n\x00")
+            f.write(b"\n| broken | \xff\xfe\x80 |\n\x00")
+
+    def truncate_store(self):
+        with open(self.data, "rb+") as f:
+            f.truncate(os.path.getsize(self.data) * 2 // 3)
+
+    def alter_store(self):
+        """Still a well-formed vault file, but every stored ciphertext has been tampered with."""
+        with open(self.data, encoding="utf8") as f:
+            vault = json.load(f)
+
+        def flip(node):
+            if isinstance(node, dict):
+                return {k: flip(v) for k, v in node.items()}
+            if isinstance(node, list):
+                return [flip(v) for v in node]
+            if isinstance(node, str) and len(node) > 20:  # an encoded key, nonce or ciphertext
+                return node[:8] + ("A" if node[8] != "A" else "B") + node[9:]
+            return node
+
+        with open(self.data, "w", encoding="utf8") as f:
+            json.dump(flip(vault), f)
+
+    def store_is_not_a_vault(self):
+        with open(self.data, "w", encoding="utf8") as f:
+            json.dump({"items": {"name": STORED["name"]}, "note": "{{name}}"}, f)
 
     def lock_store(self):
         os.chmod(self.data, 0)
@@ -139,7 +166,9 @@ def spec(*fields, **top):
 ONE = spec({"name": "name", "required": True})
 FILES = ["filled-twice.md", "value-as-format.md", "value-as-name.json", "master.md", "no-such-item.md", "bad-format.md", "broken.json", "broken.docx", "not-utf8.md",
          "bad-xml.docx", "missing.docx", "unreadable.md", "locked/master.md", "absent.md", "out", ""]
-STORE_BREAKS = ["corrupt_store", "lock_store", "store_is_a_directory"]
+STORE_BREAKS = ["corrupt_store", "truncate_store", "alter_store", "store_is_not_a_vault", "lock_store",
+                "store_is_a_directory"]
+WRONG_PASSPHRASE = {"PRIVFILL_PASSPHRASE_TEST": "not-the-passphrase"}
 
 
 def scenario(*args, answers=..., before=None, env=None):
@@ -147,7 +176,8 @@ def scenario(*args, answers=..., before=None, env=None):
 
 
 def with_broken_store(*args, **kw):
-    return [scenario(*args, before=b, **kw) for b in STORE_BREAKS]
+    """The run against each kind of damaged store, and against a sound one that will not unlock."""
+    return [*(scenario(*args, before=b, **kw) for b in STORE_BREAKS), scenario(*args, env=WRONG_PASSPHRASE, **kw)]
 
 
 # command -> the hostile runs it must survive without printing a value
@@ -156,10 +186,13 @@ SCENARIOS = {
     "version": [scenario("version"), scenario("--version"), scenario("version", "{{name}}")],
     "protocol": [scenario("protocol"), scenario("protocol", "{{name}}"), *with_broken_store("protocol")],
     "init": [scenario("init"), scenario("init", "{{name}}"), *with_broken_store("init"),
-             scenario("init", env={"PRIVFILL_DATA": "locked/deeper/profile.md"}),
-             scenario("init", env={"PRIVFILL_DATA": "master.md/profile.md"})],
+             scenario("init", env={"PRIVFILL_VAULT": "locked/deeper/vault.json"}),
+             scenario("init", env={"PRIVFILL_VAULT": "master.md/vault.json"}),
+             scenario("init", env={"PRIVFILL_VAULT": "out/new.json", "PRIVFILL_PASSPHRASE_TEST": ""})],
     "keys": [scenario("keys"), scenario("keys", "{{name}}"), *with_broken_store("keys"),
-             scenario("keys", env={"PRIVFILL_DATA": "not-utf8.md"})],
+             scenario("keys", env={"PRIVFILL_VAULT": "not-utf8.md"}),
+             scenario("keys", env={"PRIVFILL_VAULT": "broken.json"}),
+             scenario("keys", env={"PRIVFILL_VAULT": "value-as-name.json"})],
     "form": [
         scenario("form"),
         scenario("form", ONE, ONE),
@@ -265,7 +298,7 @@ class TestNoValueEscapes(unittest.TestCase):
                 # Say which stream leaked, never what: a failing test's report is output too.
                 self.assertFalse(leaked, f"{len(leaked)} value fragment(s) in {name} of {where}")
             self.assertNotIn("Traceback", err, f"an exception escaped from {where}")
-            self.assertIn(rc, (0, 1, 2, 3, 4), where)
+            self.assertIn(rc, (0, 1, 2, 3, 4, 5), where)
             if prefix and sc["args"][:1] != ["--json"]:
                 try:
                     doc = json.loads(out)
@@ -292,11 +325,10 @@ class TestNoValueEscapes(unittest.TestCase):
         """The suite is only worth something if the values really are where a leak would find them."""
         world = World(self)
         try:
-            with open(world.data, encoding="utf8") as f:
-                stored = f.read()
-            for name, v in STORED.items():
-                self.assertTrue(v in stored, f"the stored value of '{name}' is not as typed")
             self.assertTrue(all(len(s) == FRAGMENT for s in SECRETS))
+            with open(world.data, encoding="utf8") as f:
+                vault = f.read()
+            self.assertFalse([s for s in SECRETS if s in vault], "the vault file holds a value in the clear")
             rc, out, err = world.run_tool(["render", "master.md", "out/{{name}}.md"])
             self.assertEqual(rc, 0, out)
             with open(world.path("out", STORED["name"] + ".md"), encoding="utf8") as f:

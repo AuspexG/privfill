@@ -1,6 +1,6 @@
 # Giving the rules to your AI tool
 
-privfill only works if the assistant follows a few rules: write placeholders, never read the data file, never read filled outputs. The rules live in one file, [`skills/privfill/SKILL.md`](skills/privfill/SKILL.md), so there is a single text to maintain. It is written in English because it is read by the assistant, not by you.
+privfill only works if the assistant follows a few rules: write placeholders, never read the vault, never read filled outputs. The rules live in one file, [`skills/privfill/SKILL.md`](skills/privfill/SKILL.md), so there is a single text to maintain. It is written in English because it is read by the assistant, not by you.
 
 ## Claude Code
 

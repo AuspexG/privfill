@@ -9,6 +9,7 @@ import tempfile
 from .normalize import Bad, normalize
 from .texts import ui
 
+PASSPHRASE_TEST = "PRIVFILL_PASSPHRASE_TEST"  # test hook, see ask_passphrase
 
 def run_form(spec, data, store_label):
     """Show the form. Returns {name: normalized value} for answered fields, or None if cancelled.
@@ -16,9 +17,9 @@ def run_form(spec, data, store_label):
     data holds the stored values of the form's items, for pre-filling; store_label names the store to the person.
     """
     test = os.environ.get("PRIVFILL_FORM_TEST")
-    if test is not None:  # test hook: answers from the environment, fake data file only
-        if not os.environ.get("PRIVFILL_DATA"):
-            raise RuntimeError("PRIVFILL_FORM_TEST requires PRIVFILL_DATA")
+    if test is not None:  # test hook: answers from the environment, fake vault only
+        if not os.environ.get("PRIVFILL_VAULT"):
+            raise RuntimeError("PRIVFILL_FORM_TEST requires PRIVFILL_VAULT")
         answers, out = json.loads(test), {}
         if answers is None:  # the person cancels
             return None
@@ -29,6 +30,11 @@ def run_form(spec, data, store_label):
             elif f.get("required"):
                 raise Bad(f"{f['name']}: {ui('bad_required')}")
         return out
+    return qt_form(spec, data, store_label) if have_qt() else tk_form(spec, data, store_label)
+
+
+def have_qt():
+    """Whether PyQt6 can be used. Without it, the command is started again on the system Python, once."""
     try:
         from PyQt6 import QtWidgets  # noqa: F401
     except ImportError:
@@ -38,8 +44,69 @@ def run_form(spec, data, store_label):
             # This interpreter has no Qt (a conda or venv Python, say): retry with the system one.
             os.environ["PRIVFILL_REEXEC"] = "1"
             os.execv(sys_py, [sys_py, os.path.abspath(sys.argv[0])] + sys.argv[1:])
-        return tk_form(spec, data, store_label)
-    return qt_form(spec, data, store_label)
+        return False
+    return True
+
+
+def ask_passphrase(kind):
+    """Ask the person for the vault passphrase in a local dialog. Returns it, or None if they cancel.
+
+    kind is "new" (choose one, typed twice), "unlock" (enter it) or "retry" (the last one was wrong).
+    """
+    test = os.environ.get(PASSPHRASE_TEST)
+    if test is not None:  # test hook: the passphrase from the environment, fake vault only
+        vault = os.environ.get("PRIVFILL_VAULT")
+        if not vault or os.path.realpath(os.path.expanduser(vault)).startswith(
+                os.path.realpath(os.path.join(os.path.expanduser("~"), ".privfill")) + os.sep):
+            raise RuntimeError(f"{PASSPHRASE_TEST} requires PRIVFILL_VAULT to name a vault outside ~/.privfill")
+        return test
+    prompt = qt_secret if have_qt() else tk_secret
+    if kind != "new":
+        return prompt(ui("pass_retry" if kind == "retry" else "pass_unlock"))
+    text = ui("pass_new")
+    while True:
+        first = prompt(text)
+        if first is None:
+            return None
+        if not first:
+            text = ui("pass_empty") + "\n\n" + ui("pass_new")
+            continue
+        again = prompt(ui("pass_again"))
+        if again is None:
+            return None
+        if again == first:
+            return first
+        text = ui("pass_mismatch") + "\n\n" + ui("pass_new")
+
+
+def qt_secret(text):
+    """One hidden line typed by the person, or None if they cancel."""
+    from PyQt6 import QtWidgets
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(["privfill"])  # noqa: F841
+    dlg = QtWidgets.QInputDialog()
+    dlg.setWindowTitle(ui("pass_title"))
+    dlg.setLabelText(text)
+    dlg.setTextEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+    dlg.setOkButtonText(ui("pass_ok"))
+    dlg.setCancelButtonText(ui("cancel"))
+    dlg.raise_()
+    dlg.activateWindow()
+    return dlg.textValue() if dlg.exec() else None
+
+
+def tk_secret(text):
+    """Plain fallback when PyQt6 is not available."""
+    import tkinter as tk
+    from tkinter import simpledialog
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        return simpledialog.askstring(ui("pass_title"), text, show="\u2022", parent=root)
+    finally:
+        root.destroy()
 
 
 def example_from(hint):
@@ -51,8 +118,8 @@ def qt_form(spec, data, store_label):
     from PyQt6 import QtCore, QtGui, QtWidgets
 
     shot = os.environ.get("PRIVFILL_FORM_SHOT")
-    if shot and not os.environ.get("PRIVFILL_DATA"):
-        raise RuntimeError("PRIVFILL_FORM_SHOT requires PRIVFILL_DATA")
+    if shot and not os.environ.get("PRIVFILL_VAULT"):
+        raise RuntimeError("PRIVFILL_FORM_SHOT requires PRIVFILL_VAULT")
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(["privfill"])
     app.setStyle("Fusion")  # one base style everywhere; the look comes from the stylesheet below
     font = QtGui.QFont()

@@ -17,7 +17,7 @@ Below it is written as `privfill`. If that path does not exist, ask the user whe
 
 ## Never
 
-- Read, edit or list the privfill data file (`~/.privfill/` by default) or its directory.
+- Read, edit or list the privfill vault (`~/.privfill/` by default) or its directory.
 - Ask the user for a personal detail in chat, or put one on a command line or in a protocol.
 - Read, diff, grep or list a filled output file or its directory, not even to check the result.
 - Store personal details in memory or notes, or send them to any external service.
@@ -46,13 +46,13 @@ Placeholders take an optional format, so the user never has to enter the same de
 | `{{date of birth\|D.M.YYYY}}` | 4.3.2005 |
 | `{{phone\|last4}}`, `{{phone\|first3}}` | last four / first three characters |
 
-To use a detail in a command (renaming, zipping):
+To bundle outputs into a zip archive whose name contains a detail:
 
 ```
-privfill run -- zip 'out/{{student id}}_homework.zip' homework.ipynb
+privfill pack 'out/{{student id}}_homework.zip' 'out/{{student id}}_report.docx' homework.ipynb
 ```
 
-The command's output is discarded and only its exit code comes back. An argument that starts with `raw:` is passed through without substitution; use it to refer to an existing file whose name contains a placeholder.
+Every path may contain placeholders; that is how you name an output you rendered without knowing its real name. Each file goes into the archive under its base name, so directories and two files with the same name are refused. The files are left untouched, and a failure writes nothing. Never put a placeholder on any other command line: privfill does not run commands, and nothing else can fill one in.
 
 ## When an item is missing, or the user wants to record something
 
@@ -92,6 +92,9 @@ The program reports each item's status (stored, updated, unchanged, left empty) 
 | 2 | A placeholder names an item that does not exist, or a format does not apply. The message lists the available items. |
 | 3 | The user cancelled the form |
 | 4 | The protocol is invalid |
+| 5 | The user entered a wrong vault passphrase. Ask them before trying again. |
+
+Commands that use a value make the program ask the user for their vault passphrase in a local window. You never see it, never ask for it and never supply it. If the user closes that window the exit code is 3.
 
 Put `--json` before the subcommand for machine-readable output.
 
@@ -99,4 +102,4 @@ Put `--json` before the subcommand for machine-readable output.
 
 - The user states a personal detail in chat: say once that it has already been sent, and suggest the form next time. Then carry on with the task.
 - The user hands you an existing file that already contains their details: tell them before opening it and suggest turning it into a master first.
-- Testing privfill itself: point it at a fake file with `PRIVFILL_DATA=<path>`; never test on the real data file.
+- Testing privfill itself: point it at a fake vault with `PRIVFILL_VAULT=<path>`; never test on the real vault.

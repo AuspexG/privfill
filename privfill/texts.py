@@ -3,12 +3,12 @@ import os
 
 USAGE = """privfill - let an AI assistant use your personal details without seeing them.
 
-Personal details live in one local file. The assistant writes documents with
+Personal details live in one local encrypted vault. The assistant writes documents with
 placeholders such as {{name}}; this program fills in the real values locally.
 New details are entered by you in a local form. Nothing this program prints
 ever contains a value.
 
-  privfill.py init                       create the data file (no-op if it exists)
+  privfill.py init                       create the vault (no-op if it exists)
   privfill.py keys                       list stored item names (never values)
   privfill.py protocol                   print a summary of the entry protocol
   privfill.py form '<JSON>' | <file>     show an entry form described by the protocol
@@ -23,7 +23,8 @@ Put --json before the subcommand for a single JSON object as output.
 Placeholders: {{item}}, {{item|YYYY/MM/DD}}, {{item|last4}}, {{item|first6}}
 
 Exit codes: 0 ok, 1 usage or runtime error, 2 unknown item or bad format,
-            3 cancelled by the person, 4 invalid protocol
+            3 cancelled by the person, 4 invalid protocol,
+            5 wrong passphrase
 
 Command output is in English (it is read by the assistant). The form, which is
 read by the person, follows the system language (English or Chinese); override
@@ -40,12 +41,12 @@ def pick_lang():
 LANG = pick_lang()
 HEADER_NAMES = {"项目", "Item"}  # header cells of the data file table; not usable as item names
 
-# Text shown to the person (form and data file). Everything else is English.
+# Text shown to the person (form, passphrase dialog and the old data file). Everything else is English.
 UI = {
     "title": ("Enter personal information", "录入个人信息"),
-    "privacy": ("Stored only on this computer in {file}. It is never sent to the AI.\n"
+    "privacy": ("Stored only on this computer, encrypted, in {file}. It is never sent to the AI.\n"
                 "Type it however is natural; the program tidies the format.",
-                "内容只保存在本机的 {file}，不会发送给 AI。\n怎么顺手怎么写，格式由程序整理。"),
+                "内容只加密保存在本机的 {file}，不会发送给 AI。\n怎么顺手怎么写，格式由程序整理。"),
     "required": ("Required", "必填"),
     "keep": ("Already stored. Leave it as is to keep it.", "已有内容，不改就保持原样。"),
     "save": ("Save", "保存"),
@@ -66,6 +67,16 @@ UI = {
     "bad_number": ("A number is needed here.", "这里需要一个数字。"),
     "bad_choice": ("Pick one of the options in the list.", "请从下拉框里选择一项。"),
     "bad_pattern": ("This does not match the expected format; see the hint.", "格式不符合要求，请看提示。"),
+    "pass_title": ("privfill vault", "privfill 保险库"),
+    "pass_ok": ("OK", "确定"),
+    "pass_new": ("Choose a passphrase for your personal details.\n"
+                 "You will type it each time they are used. It cannot be recovered if you forget it.",
+                 "为你的个人信息设置一个口令。\n每次使用这些信息时都要输入它；忘记后无法找回。"),
+    "pass_again": ("Type the passphrase once more.", "请再输入一次口令。"),
+    "pass_empty": ("The passphrase cannot be empty.", "口令不能为空。"),
+    "pass_mismatch": ("The two passphrases did not match.", "两次输入的口令不一致。"),
+    "pass_unlock": ("Enter your passphrase to unlock your personal details.", "请输入口令以解锁你的个人信息。"),
+    "pass_retry": ("That passphrase was not right. Try again.", "口令不对，请再试一次。"),
     "file_head": ("# Personal details (private)\n\n"
                   "> Managed by privfill. Do not let an AI read this file and do not commit it anywhere.\n\n"
                   "| Item | Value |\n|---|---|\n",

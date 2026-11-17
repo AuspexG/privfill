@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack", "verify", "guard")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "guard")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -158,6 +158,12 @@ def run_cmd(argv, store, registry=None):
         print(available(store))
         RESULT.update(items=store.names())
         return 0
+    if cmd == "manage":
+        if len(argv) != 2:
+            print("Usage: manage")
+            return 1
+        from .manager_ui import run_manager
+        return run_manager(store)
     if cmd in ("form", "add"):
         if len(argv) != 3:
             print("Usage: form '<protocol JSON>' | form <file> | add <item>. Answers are typed into the form, never on the command line.")

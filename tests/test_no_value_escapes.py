@@ -205,6 +205,7 @@ FILES = ["filled-twice.md", "value-as-format.md", "value-as-name.json", "master.
 LOG_BREAKS = ["log_holds_a_value", "log_is_garbage", "log_is_locked", "log_is_a_directory"]
 STORE_BREAKS = ["corrupt_store", "truncate_store", "alter_store", "store_is_not_a_vault", "lock_store",
                 "store_is_a_directory"]
+SHOT = {"PRIVFILL_MANAGER_SHOT": "shot.png"}
 WRONG_PASSPHRASE = {"PRIVFILL_PASSPHRASE_TEST": "not-the-passphrase"}
 
 
@@ -298,6 +299,14 @@ SCENARIOS = {
         scenario("fill", *FILES),
         scenario("fill", "{{name}}.md"),
         *with_broken_store("fill", "master.md", "no-such-item.md"),
+    ],
+    # The window is drawn off-screen into a picture and closed at once, never shown.
+    "manage": [
+        scenario("manage", "{{name}}"),
+        scenario("manage", env=SHOT),
+        scenario("manage", env=dict(SHOT, PRIVFILL_MANAGER_SCRIPT='[{"select": "name"}, {"reveal": true}]')),
+        *(scenario("manage", before=b, env=SHOT) for b in STORE_BREAKS),
+        scenario("manage", env=dict(SHOT, **WRONG_PASSPHRASE)),
     ],
     "guard": [
         scenario("guard"),

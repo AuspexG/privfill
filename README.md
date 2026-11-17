@@ -77,6 +77,7 @@ privfill.py init                       create the vault
 privfill.py keys                       list item names
 privfill.py form '<JSON>' | <file>     show an entry form
 privfill.py add <item>                 enter one free-text item
+privfill.py manage                     open the local manager window (for you)
 privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
@@ -86,6 +87,19 @@ privfill.py guard                      answer a tool hook: may this call go ahea
 ```
 
 Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never passes a detail to another program, so none is ever put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
+
+## Looking at what is stored
+
+Once the vault is encrypted, `privfill.py manage` is how you see what it holds. It opens a local window (PyQt6 required) and prints nothing to the terminal.
+
+<p align="center"><img src="docs/manager-en.png" width="520" alt="The manager window: a list of items, one value revealed, edit and delete controls (fake data)"></p>
+
+- A value is hidden until you click **Reveal**, and hides itself after 8 seconds, or when you pick another item.
+- **Save change** tidies what you type by the item's type, exactly like the entry form, and says why when it cannot read it. A `choice` item is checked as text, because the list of choices is not stored.
+- **Delete** asks first.
+- **Export backup** writes a new file encrypted under a passphrase you choose for it (the same format as the vault; an existing file is never overwritten). **Import backup** restores it, and asks before replacing items that already exist.
+
+This window is for you, not the assistant: it never prints a value, but anything on screen is on screen. The screenshot above was rendered from fake data by the off-screen test hook (`PRIVFILL_MANAGER_SHOT`, see `privfill/manager_ui.py`).
 
 ## Languages
 
@@ -119,6 +133,8 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `vault.py` | the encrypted vault the commands use, and the unlock methods |
 | `normalize.py` | the rules that tidy each type of answer |
 | `protocol.py` | validation of the entry protocol, and its summary |
+| `manager.py` | what the manager window does: list, reveal, edit, delete, back up, restore |
+| `manager_ui.py` | the manager window (PyQt6) and its off-screen test hook |
 | `form.py` | the entry form and the passphrase dialog (PyQt6, with a Tk fallback) |
 | `filling.py` | placeholders, formats and the file types they are filled in |
 | `texts.py` | the usage text and the form's strings in each language |

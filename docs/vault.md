@@ -50,6 +50,10 @@ The passphrase is typed by the person into a local dialog, never on a command li
 
 There is no recovery. If the passphrase is forgotten the values are lost, and the details have to be entered again into a new vault.
 
+## Backups
+
+`privfill.py manage` can export every item to a new file in this same format, with the data key wrapped under a passphrase chosen for the backup (so a backup does not depend on the unlock method or the machine it came from) and import it again. The export refuses to overwrite a file and is written in one step. A backup holds the same things the vault file does, and the same limits apply: names, types, update times and value lengths are readable without its passphrase, and a forgotten backup passphrase cannot be recovered. Importing asks before replacing items that exist.
+
 ## Dependency
 
 Encryption uses the Python library `cryptography`, installed with the system package manager: `python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora. Without it, every command that needs a value stops with exit code 1 and a message naming these packages.

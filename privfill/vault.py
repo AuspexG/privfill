@@ -162,6 +162,9 @@ class VaultStore(Store):
     def names(self):
         return [e["name"] for e in self._load()["items"]]
 
+    def entries(self):
+        return [(e["name"], e["type"]) for e in self._load()["items"]]
+
     def read(self, name):
         vault = self._load()
         entry = self._entry(vault, name)

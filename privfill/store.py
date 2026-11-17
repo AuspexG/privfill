@@ -54,6 +54,10 @@ class Store:
         """The names of all stored items, in stored order."""
         raise NotImplementedError
 
+    def entries(self):
+        """(name, entry type) of every item, in stored order. A store that keeps no types reports "text"."""
+        return [(n, "text") for n in self.names()]
+
     def read(self, name):
         """The value of one item, or None if there is no such item."""
         raise NotImplementedError

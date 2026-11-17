@@ -75,6 +75,7 @@ privfill.py init                       创建保险库
 privfill.py keys                       列出项目名
 privfill.py form '<JSON>' | <文件>     弹出录入表单
 privfill.py add <项目名>               录入一项文字
+privfill.py manage                     打开本地管理窗口（给你自己用）
 privfill.py render <母版> <成品路径>   填充母版的副本
 privfill.py fill <文件>...             就地填充
 privfill.py pack <压缩包> <文件>...    把文件打包成 zip
@@ -84,6 +85,19 @@ privfill.py guard                      供工具钩子调用：这次调用可�
 ```
 
 支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。程序不会把个人信息交给别的程序，所以它不会出现在任何命令行上。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
+
+## 查看已保存的内容
+
+保险库加密之后，`privfill.py manage` 是你查看里面内容的唯一办法。它打开一个本地窗口（需要 PyQt6），不会向终端输出任何东西。
+
+<p align="center"><img src="docs/manager-zh.png" width="520" alt="管理窗口：条目列表、已显示的一个值、修改与删除按钮（假数据）"></p>
+
+- 值默认隐藏，点「显示」才出现，8 秒后或切换到别的项时自动隐藏。
+- 「保存修改」按该项的类型整理你输入的内容，规则和录入表单完全一样，读不懂时会说明原因。`choice` 类型的项按文字检查，因为可选项列表没有保存。
+- 「删除」前会先确认。
+- 「导出备份」写出一个新文件，用你为它单独设置的口令加密（格式与保险库相同，不会覆盖已有文件）。「导入备份」把它恢复回来，遇到已存在的项会先问你是否替换。
+
+这个窗口是给你用的，不是给助手用的：它不会打印任何值，但屏幕上显示的内容就是显示出来了。上面的截图由离屏测试钩子用假数据渲染。
 
 ## 语言
 
@@ -117,6 +131,8 @@ privfill.py guard                      供工具钩子调用：这次调用可�
 | `vault.py` | 各命令使用的加密保险库，以及解锁方式 |
 | `normalize.py` | 各类型答案的整理规则 |
 | `protocol.py` | 录入协议的校验和摘要 |
+| `manager.py` | 管理窗口的逻辑：列出、显示、修改、删除、备份、恢复 |
+| `manager_ui.py` | 管理窗口（PyQt6）及其离屏测试钩子 |
 | `form.py` | 录入表单和口令窗口（PyQt6，没有时退回 Tk） |
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
 | `texts.py` | 用法说明和表单各语言的文字 |

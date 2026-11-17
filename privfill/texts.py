@@ -13,6 +13,8 @@ ever contains a value.
   privfill.py protocol                   print a summary of the entry protocol
   privfill.py form '<JSON>' | <file>     show an entry form described by the protocol
   privfill.py add <item>                 shorthand: enter one free-text item
+  privfill.py manage                     open the local window to view, edit, delete
+                                         and back up items (for you, not the assistant)
   privfill.py render <master> <output>   fill a copy; the master stays untouched
                                          (the output path may contain placeholders)
   privfill.py fill <file>...             fill files in place
@@ -80,6 +82,33 @@ UI = {
     "pass_mismatch": ("The two passphrases did not match.", "两次输入的口令不一致。"),
     "pass_unlock": ("Enter your passphrase to unlock your personal details.", "请输入口令以解锁你的个人信息。"),
     "pass_retry": ("That passphrase was not right. Try again.", "口令不对，请再试一次。"),
+    "mgr_title": ("privfill: stored details", "privfill：已保存的个人信息"),
+    "mgr_privacy": ("Only you can see this window. Values stay hidden until you click Reveal.",
+                    "只有你能看到这个窗口。值默认隐藏，点「显示」才会出现。"),
+    "mgr_items": ("{n} items", "共 {n} 项"),
+    "mgr_none": ("Nothing is stored yet.", "还没有保存任何内容。"),
+    "mgr_pick": ("Pick an item on the left.", "请在左侧选择一项。"),
+    "mgr_reveal": ("Reveal", "显示"),
+    "mgr_hide": ("Hide", "隐藏"),
+    "mgr_hides_in": ("Hides itself after {s} seconds.", "{s} 秒后自动隐藏。"),
+    "mgr_new_value": ("New value", "新的值"),
+    "mgr_edit_hint": ("Type the new value however is natural; it is tidied like in the form.",
+                      "怎么顺手怎么写，格式和录入表单一样会被整理。"),
+    "mgr_save": ("Save change", "保存修改"),
+    "mgr_saved": ("Saved.", "已保存。"),
+    "mgr_delete": ("Delete", "删除"),
+    "mgr_deleted": ("Deleted.", "已删除。"),
+    "mgr_confirm_delete": ("Delete \u201c{name}\u201d? This cannot be undone.", "删除“{name}”？此操作无法撤销。"),
+    "mgr_export": ("Export backup\u2026", "导出备份…"),
+    "mgr_import": ("Import backup\u2026", "导入备份…"),
+    "mgr_exported": ("Backup written with {n} items. Keep its passphrase: it cannot be recovered.",
+                     "已导出 {n} 项的备份。请记住备份口令，忘记后无法找回。"),
+    "mgr_imported": ("Restored: {a} added, {r} replaced.", "已恢复：新增 {a} 项，替换 {r} 项。"),
+    "mgr_confirm_replace": ("These items already exist and would be replaced:\n{names}\n\nReplace them?",
+                            "下面这些项已经存在，将被替换：\n{names}\n\n是否替换？"),
+    "mgr_save_dlg": ("Save backup as", "备份保存为"),
+    "mgr_open_dlg": ("Choose a backup file", "选择备份文件"),
+    "mgr_no_qt": ("the manager window needs PyQt6, which is not installed", "管理窗口需要 PyQt6，但它没有安装"),
     "file_head": ("# Personal details (private)\n\n"
                   "> Managed by privfill. Do not let an AI read this file and do not commit it anywhere.\n\n"
                   "| Item | Value |\n|---|---|\n",

@@ -8,9 +8,11 @@ import shutil
 from . import __version__
 from .filling import Missing, fill_file, sub
 from .form import run_form
+from .guard import run as run_guard
 from .normalize import NORMS, Bad
 from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
+from .registry import FILE_NAME, Registry, RegistryError
 from .store import StoreError, default_store
 from .texts import USAGE
 
@@ -70,7 +72,17 @@ def available(store):
     return "Available items: " + (", ".join(store.names()) or "(none yet)") + "."
 
 
-def run_cmd(argv, store):
+def registered(registry, path):
+    """Record a file this command filled as an output. False if it could not be recorded."""
+    try:
+        if registry:
+            registry.record(path)
+        return True
+    except (OSError, RegistryError):
+        return False
+
+
+def run_cmd(argv, store, registry=None):
     if len(argv) < 2 or argv[1] in ("-h", "--help", "help"):
         print(USAGE)
         return 0
@@ -83,6 +95,11 @@ def run_cmd(argv, store):
         print(PROTOCOL)
         RESULT.update(protocol=PROTOCOL_VERSION, types=list(NORMS), field_keys=sorted(FIELD_KEYS))
         return 0
+    if cmd == "guard":  # the answer is the exit code; nothing is printed but a path-free reason, on stderr
+        if registry is None:
+            print("Failed: this store has no data directory to guard.")
+            return 1
+        return run_guard(registry, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "privfill.py"))
     if cmd == "init":
         created = store.create()
         print("Created the vault." if created else "The vault already exists; left untouched.")
@@ -110,6 +127,11 @@ def run_cmd(argv, store):
         for i, path in enumerate(argv[2:], 1):  # file names may hold personal details: refer to files by index
             try:
                 c = fill_file(path, store)
+                if c and not registered(registry, path):
+                    RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": c})
+                    print(f"File {i}: filled {used(c)}, but not registered as an output; the guard does not protect it.")
+                    rc = rc or 1
+                    continue
                 RESULT.setdefault("files", []).append({"index": i, "ok": True, "used": c})
                 print(f"File {i}: " + (f"filled {used(c)}." if c else "no placeholders; left untouched."))
             except Missing as e:
@@ -139,6 +161,8 @@ def run_cmd(argv, store):
         try:
             shutil.copy2(src, dst)
             c = fill_file(dst, store)
+            if registry:
+                registry.record(dst)  # an output that cannot be registered is not kept
         except Missing as e:
             os.unlink(dst)
             print(f"Failed: {e}; nothing was written. {available(store)}")
@@ -165,6 +189,10 @@ def run_cmd(argv, store):
             return 2
         try:
             pack(dst, files)
+            if not registered(registry, dst):
+                os.unlink(dst)
+                print("Failed: the archive could not be registered as an output; nothing was written.")
+                return 1
         except PackError as e:
             print(f"Failed: {e}; nothing was written.")
             return 1
@@ -174,31 +202,36 @@ def run_cmd(argv, store):
         RESULT.update(packed=len(files), used=counter)
         print(f"Archive written with {len(files)} file(s); the files are untouched. Items used: {used(counter) or 'none'}.")
         return 0
-    print("Unknown subcommand. Available: init, keys, protocol, form, add, render, fill, pack.")
+    print("Unknown subcommand. Available: init, keys, protocol, form, add, render, fill, pack, guard.")
     return 1
 
 
-def run_checked(argv, store):
+def run_checked(argv, store, registry=None):
     """run_cmd, with a store that cannot go on (locked, damaged, unlock cancelled) reported as a failure."""
     try:
-        return run_cmd(argv, store)
+        return run_cmd(argv, store, registry)
     except StoreError as e:
         print(f"Failed: {e}.")
         return e.code
 
 
-def main(argv, store=None):
-    """Run one command. Items are read and written only through store (default: the vault)."""
+def main(argv, store=None, registry=None):
+    """Run one command. Items are read and written only through store (default: the vault).
+
+    Outputs are recorded in registry (default: a file in the store's directory, if it has one).
+    """
     if store is None:
         store = default_store()
+    if registry is None and getattr(store, "directory", None):
+        registry = Registry(os.path.join(store.directory, FILE_NAME))
     RESULT.clear()
     if "--json" in argv[1:2]:
         argv = argv[:1] + argv[2:]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            code = run_checked(argv, store)
+            code = run_checked(argv, store, registry)
         out = {"ok": code == 0, "code": code, "message": buf.getvalue().strip()}
         out.update(RESULT)
         print(json.dumps(out, ensure_ascii=False))
         return code
-    return run_checked(argv, store)
+    return run_checked(argv, store, registry)

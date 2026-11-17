@@ -81,6 +81,7 @@ privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py protocol                   print the entry protocol summary
+privfill.py guard                      answer a tool hook: may this call go ahead?
 ```
 
 Works on Word, Excel and PowerPoint files, Jupyter notebooks, JSON and any text file, and in file names. The program never passes a detail to another program, so none is ever put on a command line. Add `--json` before the subcommand for machine-readable output. The full contract, including exit codes, is in [PROTOCOL.md](PROTOCOL.md). Sample protocols and masters are in [examples/](examples/).
@@ -122,6 +123,8 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `texts.py` | the usage text and the form's strings in each language |
 | `packing.py` | bundling files into a zip archive |
 | `atomic.py` | writing or replacing a file in one step |
+| `registry.py` | the record of which files were filled with real values |
+| `guard.py` | the decision whether a tool call may touch the data directory or an output ([docs/guard.md](docs/guard.md)) |
 
 Commands reach items only through a `Store`, so another way of keeping them needs a new backend and nothing else.
 

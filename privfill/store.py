@@ -44,6 +44,7 @@ class Store:
     """The interface between the commands and wherever items are kept."""
 
     label = ""  # how the form names the store to the person
+    directory = None  # the protected directory the store keeps its data in, if it has one
 
     def create(self):
         """Make the store exist, empty, if it does not. Returns True if it was created."""

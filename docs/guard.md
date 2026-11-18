@@ -47,6 +47,8 @@ The reason is one of a fixed set of sentences. It names the kind of thing the ca
 | the hook payload was not understood | the input is not the format below, or the guard itself failed |
 | the output registry could not be read | `outputs.json` is damaged; every call is denied until it is repaired or removed |
 
+Calls to the program's own MCP tools (`mcp__<server>__privfill_keys`, `_form`, `_render`, `_pack`, under whatever server name they were registered) are allowed like the program's own commands, so `privfill_pack` may bundle a filled output. Any other MCP tool is judged by its inputs like a file tool.
+
 The guard never asks for the passphrase and does not need the `cryptography` library.
 
 ### Assumed payload format

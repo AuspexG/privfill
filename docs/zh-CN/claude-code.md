@@ -40,6 +40,24 @@ skill 的说明是英文的，因为它是写给 Claude 读的，不是给你读
 
 批准时看一眼命令：正常情况下是 `privfill.py` 加子命令。如果是 `cat`、`grep` 或读文件工具指向数据目录，拒绝它。
 
+## 3. MCP 服务（可选）
+
+除了通过 shell 运行程序，Claude 也可以把它当作工具调用。注册一次即可：
+
+```
+claude mcp add --scope user privfill -- python3 ~/.privfill/privfill.py mcp
+```
+
+之后 Claude 能看到四个工具：`privfill_keys`、`privfill_form`、`privfill_render` 和 `privfill_pack`。它们的输入结构里带着录入协议，Claude 不需要额外文档就能调用。每个工具返回的 JSON 对象和对应命令加 `--json` 时相同：只有项目名、次数、状态和退出码（退出码不为 0 时 `isError` 为 true）。没有任何工具接收值、返回值或运行命令。第一次调用工具时才打开保险库，口令对话框也在那时出现。
+
+若希望每次调用前都询问你，把这些工具加进 `ask` 规则：
+
+```json
+"ask": ["mcp__privfill__privfill_form", "mcp__privfill__privfill_render", "mcp__privfill__privfill_pack"]
+```
+
+**与 guard 的关系。** guard 放行这个服务自己的工具（无论注册时用什么服务名），就像放行命令行上的 `privfill.py` 一样，所以 `privfill_pack` 可以打包已填好的输出文件。其他所有工具，包括其他 MCP 服务的工具，都按输入判断：只要某个输入指向数据目录或已填好的输出文件，就会被拒绝。服务和 guard 使用同一个数据目录和同一份输出记录，所以无论通过哪条路径生成的输出都受同样保护。
+
 ## 这层保护的边界
 
 `ask` 规则由 Claude Code 执行，对命令行按文本匹配，不是沙箱。它的价值是让每一次访问都经过你的眼睛。想要更硬的限制，可以再禁止直接读取保险库（其中项目名是明文，内容是密文）：

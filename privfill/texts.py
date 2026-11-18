@@ -15,6 +15,8 @@ ever contains a value.
   privfill.py add <item>                 shorthand: enter one free-text item
   privfill.py manage                     open the local window to view, edit, delete
                                          and back up items (for you, not the assistant)
+  privfill.py mcp                        serve the tools keys, form, render and pack as a
+                                         Model Context Protocol server on stdin/stdout
   privfill.py render <master> <output>   fill a copy; the master stays untouched
                                          (the output path may contain placeholders)
   privfill.py fill <file>...             fill files in place

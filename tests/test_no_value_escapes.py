@@ -308,6 +308,12 @@ SCENARIOS = {
         *(scenario("manage", before=b, env=SHOT) for b in STORE_BREAKS),
         scenario("manage", env=dict(SHOT, **WRONG_PASSPHRASE)),
     ],
+    # Standard input is empty, so the server ends at once; tests/test_mcp_server.py drives the tools.
+    "mcp": [
+        scenario("mcp"),
+        scenario("mcp", "{{name}}"),
+        *with_broken_store("mcp"),
+    ],
     "guard": [
         scenario("guard"),
         scenario("guard", "{{name}}"),
@@ -358,8 +364,8 @@ class TestNoValueEscapes(unittest.TestCase):
                 self.assertFalse(leaked, f"{len(leaked)} value fragment(s) in {name} of {where}")
             self.assertNotIn("Traceback", err, f"an exception escaped from {where}")
             self.assertIn(rc, (0, 1, 2, 3, 4, 5), where)
-            # guard answers through its exit code alone and ignores --json (docs/guard.md)
-            if prefix and sc["args"][:1] not in (["--json"], ["guard"]):
+            # guard answers through its exit code alone and mcp speaks its own protocol: both ignore --json
+            if prefix and sc["args"][:1] not in (["--json"], ["guard"], ["mcp"]):
                 try:
                     doc = json.loads(out)
                 except ValueError:

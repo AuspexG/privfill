@@ -82,6 +82,7 @@ privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py verify                     检查操作日志是否被改动
 privfill.py protocol                   打印录入协议摘要
 privfill.py guard                      供工具钩子调用：这次调用可以放行吗？
+privfill.py mcp                        作为 MCP 服务提供这些工具（标准输入输出）
 ```
 
 支持 Word、Excel、PowerPoint 文件、Jupyter notebook、JSON 和任意文本文件，文件名里也能用占位符。程序不会把个人信息交给别的程序，所以它不会出现在任何命令行上。在子命令前加 `--json` 得到机器可读的输出。完整约定（含退出码）见 [PROTOCOL.md](PROTOCOL.md)（英文）。协议和母版的例子在 [examples/zh-CN/](examples/zh-CN/)。
@@ -142,6 +143,7 @@ privfill.py guard                      供工具钩子调用：这次调用可�
 | `hardening.py` | 禁用核心转储，使进程不可被检查（见 `PROTOCOL.md` 6.1） |
 | `registry.py` | 记录哪些文件已被填入真实内容 |
 | `guard.py` | 判断一次工具调用是否会触及数据目录或已填好的输出文件（见 [docs/guard.md](docs/guard.md)） |
+| `mcp_server.py` | Model Context Protocol 服务：keys、form、render、pack 的类型化工具（见 [docs/zh-CN/claude-code.md](docs/zh-CN/claude-code.md)） |
 
 命令只通过 `Store` 接触个人信息，所以换一种保存方式只需要加一个后端。
 

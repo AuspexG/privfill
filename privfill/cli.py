@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "guard")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "guard", "mcp")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -126,6 +126,9 @@ def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
         print("Unknown subcommand. Available: " + ", ".join(c for c in COMMANDS if c not in ("help", "version")) + ".")
+        return 1
+    if cmd == "mcp":  # main serves it before anything is printed; a direct call has no channel to serve
+        print("Usage: mcp (run as `privfill.py mcp`, by an assistant tool)")
         return 1
     if cmd == "guard":  # main answers a hook before any store is opened; this is for direct calls
         return guard(registry)
@@ -327,6 +330,9 @@ def main(argv, store=None, log=None, registry=None):
     harden()  # before anything personal is read
     if argv[1:] and argv[1:3][-1] == "guard" and argv[1:3][0] in ("guard", "--json"):
         return guard(registry)  # a hook needs the exit code alone: no store, no passphrase, no --json
+    if argv[1:2] == ["mcp"]:  # stdout is the protocol channel; each tool call comes back here with --json
+        from .mcp_server import run
+        return run(argv, store)
     RESULT.clear()
     del EVENTS[:]
     LOG[0] = None

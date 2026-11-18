@@ -35,6 +35,8 @@ REGISTRY = "the output registry could not be read"
 # Words in the key of a tool input (file_path, notebookPath, paths) that say its value is a path, or a shell command.
 PATH_KEYS = {"path", "file", "filename", "filepath", "dir", "directory", "directories", "folder", "uri", "url", "source", "glob", "notebook"}
 SHELL_KEYS = {"command", "cmd", "script"}
+# This program's own MCP tools (privfill/mcp_server.py), under whatever name the server was registered.
+OWN_MCP_TOOL = re.compile(r"mcp__.+__privfill_(keys|form|render|pack)")
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 PREFIXES = {"sudo", "env", "command", "exec", "nohup", "time", "xargs", "eval",
             "if", "then", "else", "elif", "do", "while", "until", "!", "{"}
@@ -145,6 +147,8 @@ class Guard:
         if not isinstance(cwd, str) or not os.path.isabs(cwd):
             cwd = os.getcwd()
         self.variables = {"PWD": cwd}
+        if OWN_MCP_TOOL.fullmatch(tool):  # the program's own tools, like its own commands in a shell
+            return None
         try:
             if tool == "Bash":
                 return self.shell(call.get("command"), cwd)

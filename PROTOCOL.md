@@ -124,11 +124,13 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill render <master> <output>` | Copy the master to the output path and fill it; the master stays untouched. |
 | `privfill fill <file>...` | Fill in place. This destroys the master, so use it only on throwaway copies. |
 | `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
+| `privfill manage` | Open the local manager window (for the person, not the caller). Prints nothing. |
+| `privfill mcp` | Serve `keys`, `form`, `render` and `pack` as Model Context Protocol tools on standard input and output (see `docs/claude-code.md`). Each tool returns its command's `--json` object, with `isError` true when `code` is not 0. No tool takes or returns a value. |
 | `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
 
 Every file that `render`, `fill` or `pack` fills or writes is recorded, by path and content hash, in a registry inside the vault's directory. The caller must not read it. If the record cannot be made, `render` and `pack` write nothing and exit with code 1, and `fill` reports the file as failed.
 
-`privfill guard` is not for the caller. It is run by the caller's tool before each tool call, with the call as JSON on standard input, and answers through its exit code alone: 0 allows the call, 2 denies it, with a one-line reason on standard error that never contains a path or a value. It denies calls that would read, change, list or search the vault's directory or a recorded output, and allows the commands in the table above. The input format and the decisions are in `docs/guard.md`.
+`privfill guard` is not for the caller. It is run by the caller's tool before each tool call, with the call as JSON on standard input, and answers through its exit code alone: 0 allows the call, 2 denies it, with a one-line reason on standard error that never contains a path or a value. It denies calls that would read, change, list or search the vault's directory or a recorded output, and allows the commands in the table above and the program's own MCP tools. The input format and the decisions are in `docs/guard.md`.
 
 ### 4.1 Exit codes
 

@@ -14,31 +14,25 @@
 
 skill 的说明是英文的，因为它是写给 Claude 读的，不是给你读的；表单界面会按系统语言显示中文。
 
-## 2. 权限
+## 2. 防护配置
 
-在 `~/.claude/settings.json` 的 `permissions` 里加入 `ask` 规则：
-
-```json
-{
-  "permissions": {
-    "ask": [
-      "Read(~/.privfill/**)",
-      "Edit(~/.privfill/**)",
-      "Bash(*privfill*)"
-    ]
-  }
-}
+```
+./install.sh --claude            # 或 --claude-sandbox，见下
+./install.sh --claude-remove     # 再把它撤掉
 ```
 
-| 规则 | 作用 |
+它把下面这些合并进 `~/.claude/settings.json`，文件里其他内容保持不变（旧版本备份为 `settings.json.privfill-backup`，新增了什么记录在 `settings.json.privfill.json`，撤除时只撤这些）：
+
+| 设置 | 作用 |
 |---|---|
-| `Read(~/.privfill/**)` | Claude 用读文件工具读数据目录前要你批准。 |
-| `Edit(~/.privfill/**)` | Claude 修改这个目录里的文件前要你批准。 |
-| `Bash(*privfill*)` | 任何提到 privfill 的命令（包括每次调用程序）执行前要你批准。 |
+| `permissions.deny`：`Read(~/.privfill/**)`、`Edit(~/.privfill/**)` | Claude 的文件工具永远读不到、改不了数据目录。 |
+| `hooks.PreToolUse`，matcher `*`：`privfill.py guard` | 每次工具调用先经 guard 判断（见 `docs/guard.md`）：触及数据目录或已填好输出文件的读取、搜索、列目录和 shell 命令都会被拒绝，理由里不出现任何路径。 |
+| `permissions.allow`：`Bash(python3 ~/.privfill/privfill.py <命令> *)`，以及 skill 里那份副本的同样规则 | 程序自己的命令不再弹出询问。guard 仍会逐条检查，比如参数里藏的命令替换。 |
+| `sandbox`（仅 `--claude-sandbox`） | 打开 Claude Code 的 Bash 沙箱，让拒绝规则在操作系统层面也挡住 shell 读取，同时让程序自己的命令在沙箱外运行以便打开保险库。沙箱作用于所有 shell 命令（包括网络访问），所以单独作为一个选项。 |
 
-已有 `permissions` 时把 `ask` 数组合并进去，不要整个替换。重启 Claude Code，然后让 Claude 运行一次 `privfill keys`，确认会弹出询问。
+旧版本的 `ask` 规则（`Read(~/.privfill/**)`、`Edit(~/.privfill/**)`、`Bash(*privfill*)`）会被移除：改由 guard 确定地判断，不再每次询问。
 
-批准时看一眼命令：正常情况下是 `privfill.py` 加子命令。如果是 `cat`、`grep` 或读文件工具指向数据目录，拒绝它。
+重启 Claude Code，然后按 [verify-guard.md](../verify-guard.md)（英文）在真实会话里检查一次。
 
 ## 3. MCP 服务（可选）
 
@@ -60,10 +54,6 @@ claude mcp add --scope user privfill -- python3 ~/.privfill/privfill.py mcp
 
 ## 这层保护的边界
 
-`ask` 规则由 Claude Code 执行，对命令行按文本匹配，不是沙箱。它的价值是让每一次访问都经过你的眼睛。想要更硬的限制，可以再禁止直接读取保险库（其中项目名是明文，内容是密文）：
-
-```json
-"deny": ["Read(~/.privfill/vault.json)"]
-```
-
-privfill 自己不受影响：读文件的是程序，不是 Claude 的读文件工具。
+- Claude Code 按文本匹配 shell 命令，guard 也只按调用的字面判断，所以两者都不是沙箱。`--claude-sandbox` 为 shell 命令加上操作系统层面的一层。
+- 任何以你的身份运行的程序都能改 `~/.claude/settings.json`，所以这些规则只在助手不去改写它时有效。[managed-settings.md](../managed-settings.md)（英文）介绍把它们放进只有 root 能改的托管配置。
+- 这些都防不了以你的身份运行的恶意软件。

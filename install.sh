@@ -2,6 +2,9 @@
 # Install privfill.
 #   ./install.sh            program to ~/.privfill; the vault is created there on first use
 #   ./install.sh --skill    also install the Claude Code skill to ~/.claude/skills/privfill
+#   ./install.sh --claude   also put the guard into ~/.claude/settings.json (deny rules, hook, allow rules)
+#   ./install.sh --claude-sandbox   the same, and turn on Claude Code's Bash sandbox
+#   ./install.sh --claude-remove    take the guard configuration out of ~/.claude/settings.json again
 # Only the program is copied: the launcher privfill.py and the privfill/ package beside it.
 # An existing vault or data file is never read or overwritten.
 set -eu
@@ -9,10 +12,14 @@ set -eu
 SRC="$(cd "$(dirname "$0")" && pwd)"
 DEST="${PRIVFILL_HOME:-$HOME/.privfill}"
 SKILL=0
+CLAUDE=""
 for a in "$@"; do
     case "$a" in
         --skill) SKILL=1 ;;
-        -h|--help) sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        --claude) CLAUDE=apply ;;
+        --claude-sandbox) CLAUDE=sandbox ;;
+        --claude-remove) CLAUDE=remove ;;
+        -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) echo "unknown option: $a" >&2; exit 1 ;;
     esac
 done
@@ -48,6 +55,16 @@ if [ "$SKILL" = 1 ]; then
     cp "$SRC/skills/privfill/SKILL.md" "$SK/SKILL.md"
     install_program "$SK"
     echo "Skill:     $SK"
+fi
+
+SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
+case "$CLAUDE" in
+    apply)   "$PY" "$SRC/tools/claude_settings.py" apply --settings "$SETTINGS" --program "$DEST/privfill.py" --python "$PY" ;;
+    sandbox) "$PY" "$SRC/tools/claude_settings.py" apply --settings "$SETTINGS" --program "$DEST/privfill.py" --python "$PY" --sandbox ;;
+    remove)  "$PY" "$SRC/tools/claude_settings.py" remove --settings "$SETTINGS" ;;
+esac
+if [ -n "$CLAUDE" ] && [ "$CLAUDE" != remove ]; then
+    echo "Guard:     restart Claude Code, then follow docs/verify-guard.md to check it in a real session."
 fi
 
 if "$PY" -c "import PyQt6.QtWidgets" >/dev/null 2>&1; then

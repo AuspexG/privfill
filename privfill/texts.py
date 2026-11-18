@@ -24,6 +24,9 @@ ever contains a value.
                                          (every path may contain placeholders)
   privfill.py verify                     check the activity log was not altered
   privfill.py restore [<version>]        list the vault's backups, or put one back
+  privfill.py audit [--min-length N] [--window] <path>...
+                                         look for stored values in files; reports item
+                                         names, counts and numbered locations only
   privfill.py migrate [<old file>]       move a plain-text data file of an earlier
                                          version into the vault
   privfill.py unlock [add|change|remove] [keyring|passphrase]
@@ -121,6 +124,12 @@ UI = {
                         "file systems traces may remain.",
                         "privfill 已把你的信息移入加密保险库，并逐项核对无误。\n\n"
                         "现在删除旧的明文文件吗？删除前会先覆盖，但在 SSD 和日志型文件系统上仍可能留下痕迹。"),
+    "audit_title": ("privfill: where your details were found", "privfill：在哪里找到了你的信息"),
+    "audit_note": ("Only you can see this window. The assistant was told the numbers and counts, not these paths.",
+                   "只有你能看到这个窗口。助手只知道编号和次数，看不到这些路径。"),
+    "audit_index": ("No.", "编号"),
+    "audit_path": ("File", "文件"),
+    "audit_items": ("Found", "找到的项目"),
     "file_head": ("# Personal details (private)\n\n"
                   "> Managed by privfill. Do not let an AI read this file and do not commit it anywhere.\n\n"
                   "| Item | Value |\n|---|---|\n",

@@ -84,6 +84,7 @@ privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py verify                     check the activity log
 privfill.py restore [<version>]        list the vault's backups, or put one back
 privfill.py migrate [<old file>]       move an earlier version's plain-text file into the vault
+privfill.py audit <path>...            look for stored values in files (names and counts only)
 privfill.py unlock [add|change|remove] [keyring|passphrase]
                                        list or change how the vault is unlocked
 privfill.py protocol                   print the entry protocol summary
@@ -138,6 +139,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `vault.py` | the encrypted vault the commands use, and the unlock methods |
 | `keyring.py` | unlocking by the desktop keyring (Secret Service) |
 | `migrate.py` | moving an earlier version's plain-text data file into the vault |
+| `audit.py` | finding stored values in files, in their written variants ([docs/audit.md](docs/audit.md)) |
 | `normalize.py` | the rules that tidy each type of answer |
 | `protocol.py` | validation of the entry protocol, and its summary |
 | `manager.py` | what the manager window does: list, reveal, edit, delete, back up, restore |

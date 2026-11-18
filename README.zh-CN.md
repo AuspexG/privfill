@@ -82,6 +82,7 @@ privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py verify                     检查操作日志是否被改动
 privfill.py restore [<版本>]           列出保险库的备份，或恢复其中一个
 privfill.py migrate [<旧文件>]         把旧版本的明文数据文件移入保险库
+privfill.py audit <路径>...            在文件里查找已存的值（只报项目名和次数）
 privfill.py unlock [add|change|remove] [keyring|passphrase]
                                        查看或更改保险库的解锁方式
 privfill.py protocol                   打印录入协议摘要
@@ -136,6 +137,7 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 | `vault.py` | 各命令使用的加密保险库，以及解锁方式 |
 | `keyring.py` | 通过桌面密钥环（Secret Service）解锁 |
 | `migrate.py` | 把旧版本的明文数据文件移入保险库 |
+| `audit.py` | 在文件中查找已存的值及其各种写法（见 [docs/audit.md](docs/audit.md)） |
 | `normalize.py` | 各类型答案的整理规则 |
 | `protocol.py` | 录入协议的校验和摘要 |
 | `manager.py` | 管理窗口的逻辑：列出、显示、修改、删除、备份、恢复 |

@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "unlock", "migrate", "guard", "mcp")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "unlock", "migrate", "audit", "guard", "mcp")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -214,6 +214,58 @@ def cmd_migrate(args, store):
     return 0
 
 
+AUDIT_USAGE = "Usage: audit [--min-length N] [--window] <file or directory>..."
+
+
+def cmd_audit(args, store):
+    """Look for stored values in files. Prints item names, counts and location numbers, never a value or a path."""
+    from .audit import FOUND, MIN_LENGTH, audit, show_window
+
+    min_length, window, paths = MIN_LENGTH, False, []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a == "--window":
+            window = True
+        elif a == "--min-length" and i + 1 < len(args) and args[i + 1].isdigit() and int(args[i + 1]) >= 1:
+            min_length = int(args[i + 1])
+            i += 1
+        elif a.startswith("--"):
+            print(AUDIT_USAGE)
+            return 1
+        else:
+            paths.append(a)
+        i += 1
+    if not paths:
+        print(AUDIT_USAGE)
+        return 1
+    missing = [n for n, p in enumerate(paths, 1) if not os.path.exists(p)]
+    if missing:
+        print(f"Failed: path(s) number {', '.join(map(str, missing))} do not exist; nothing was scanned.")
+        return 1
+    vault_file = getattr(store, "path", None)
+    r = audit(paths, store, min_length, skip=[vault_file] if vault_file else [])
+    RESULT.update(found=r["totals"], scanned=r["scanned"], skipped=r["skipped"], too_short=r["short"],
+                  locations=[{"index": n, "items": hits} for n, (_, hits) in enumerate(r["locations"], 1)])
+    print(f"Scanned {r['scanned']} file(s); skipped {r['skipped']} (binary, too big or unreadable).")
+    if r["short"]:
+        print(f"Not searched, shorter than {min_length} characters: {', '.join(r['short'])}.")
+    if not r["totals"]:
+        print("No stored value was found.")
+        return 0
+    print("Found: " + ", ".join(f"{k} x{c}" for k, c in r["totals"].items()) + f", in {len(r['locations'])} location(s).")
+    for n, (_, hits) in enumerate(r["locations"], 1):
+        print(f"  location {n}: " + ", ".join(f"{k} x{c}" for k, c in hits.items()))
+    if window:
+        try:
+            show_window(r["locations"])
+        except RuntimeError as e:
+            print(f"The window could not be shown ({e}); `--window` needs PyQt6.")
+    else:
+        print("The paths are not printed, since a path can hold a value; `audit --window` shows them to the person.")
+    return FOUND
+
+
 def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
@@ -235,6 +287,8 @@ def run_cmd(argv, store, registry=None):
         return cmd_unlock(argv[2:], store)
     if cmd == "migrate":
         return cmd_migrate(argv[2:], store)
+    if cmd == "audit":
+        return cmd_audit(argv[2:], store)
     if cmd == "restore":
         if len(argv) > 3 or not hasattr(store, "backups"):
             print("Usage: restore [<version>]" if len(argv) > 3 else "This store keeps no backups.")

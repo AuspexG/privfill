@@ -350,6 +350,18 @@ SCENARIOS = {
         *with_broken_store("unlock"),
         *with_broken_store("unlock", "change", "passphrase"),
     ],
+    # Every file of the world holds values in some form; the names and paths do too.
+    "audit": [
+        scenario("audit"),
+        scenario("audit", "."),
+        scenario("audit", "--min-length", "1", "."),
+        scenario("audit", "--min-length", "{{name}}", "."),
+        scenario("audit", "--window", ".", env={"PRIVFILL_AUDIT_SHOT": "audit.png"}),
+        scenario("audit", "filled-twice.md", "value-as-name.json", "bad-xml.docx", "not-utf8.md", "locked"),
+        scenario("audit", "Qwyzbek Vorplux.md"),
+        scenario("audit", ".", before="old_data_file"),
+        *with_broken_store("audit", "."),
+    ],
     "migrate": [
         scenario("migrate"),
         scenario("migrate", "{{name}}"),
@@ -413,7 +425,7 @@ class TestNoValueEscapes(unittest.TestCase):
                 # Say which stream leaked, never what: a failing test's report is output too.
                 self.assertFalse(leaked, f"{len(leaked)} value fragment(s) in {name} of {where}")
             self.assertNotIn("Traceback", err, f"an exception escaped from {where}")
-            self.assertIn(rc, (0, 1, 2, 3, 4, 5), where)
+            self.assertIn(rc, (0, 1, 2, 3, 4, 5, 6), where)
             # guard answers through its exit code alone and mcp speaks its own protocol: both ignore --json
             if prefix and sc["args"][:1] not in (["--json"], ["guard"], ["mcp"]):
                 try:

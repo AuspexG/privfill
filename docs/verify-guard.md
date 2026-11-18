@@ -43,7 +43,7 @@ Start a new session in `/tmp/pf-verify` and ask for each step on its own. "Block
 
 | Date | Claude Code version | Sandbox | Steps blocked as expected | Steps run without prompt | Notes |
 |---|---|---|---|---|---|
-| | | | | | |
+| 2026-11-18 | 2.1.327, Linux | off | 1–8, and reading the new output in 11 | 9, 10, 11 | Run by Claude in the session itself after `./install.sh --skill --claude` and a restart. Step 1 was stopped by the deny rule ("denied by your permission settings"), every other step by the hook with the guard's reason. The session had no separate Grep and Glob tools, so searches and listings (2, 3, 6, 7) were tried with `grep -r`, `ls` and a shell wildcard. Reading the master next to the outputs stayed allowed. No file content reached the assistant. |
 
 Remove `/tmp/pf-verify` afterwards, and the test item with `privfill.py manage`.
 

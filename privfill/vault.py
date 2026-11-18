@@ -142,6 +142,7 @@ class VaultStore(Store):
     def __init__(self, path, unlock):
         self.path = path
         self.label = os.path.basename(path)
+        self.directory = os.path.dirname(path)
         self.unlock = unlock
         self._data_key = None
 

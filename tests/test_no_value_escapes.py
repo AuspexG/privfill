@@ -158,6 +158,31 @@ class World:
         os.unlink(self.data)
         os.mkdir(self.data)
 
+    # Ways to break the activity log beside it.
+    @property
+    def log(self):
+        return self.path("store", "activity.log")
+
+    def log_holds_a_value(self):
+        """A record whose fields were rewritten to hold values: verify must not quote them."""
+        with open(self.log, encoding="utf8") as f:
+            rec = json.loads(f.readline())
+        rec["items"] = {STORED["name"]: STORED["phone"]}
+        rec["command"] = STORED["email"]
+        with open(self.log, "a", encoding="utf8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+    def log_is_garbage(self):
+        with open(self.log, "ab") as f:
+            f.write(STORED["name"].encode("utf8") + b" \xff\xfe {not json\n")
+
+    def log_is_locked(self):
+        os.chmod(self.log, 0)
+
+    def log_is_a_directory(self):
+        os.unlink(self.log)
+        os.mkdir(self.log)
+
 
 def spec(*fields, **top):
     return json.dumps(dict(top, fields=list(fields)))
@@ -166,6 +191,7 @@ def spec(*fields, **top):
 ONE = spec({"name": "name", "required": True})
 FILES = ["filled-twice.md", "value-as-format.md", "value-as-name.json", "master.md", "no-such-item.md", "bad-format.md", "broken.json", "broken.docx", "not-utf8.md",
          "bad-xml.docx", "missing.docx", "unreadable.md", "locked/master.md", "absent.md", "out", ""]
+LOG_BREAKS = ["log_holds_a_value", "log_is_garbage", "log_is_locked", "log_is_a_directory"]
 STORE_BREAKS = ["corrupt_store", "truncate_store", "alter_store", "store_is_not_a_vault", "lock_store",
                 "store_is_a_directory"]
 WRONG_PASSPHRASE = {"PRIVFILL_PASSPHRASE_TEST": "not-the-passphrase"}
@@ -261,6 +287,12 @@ SCENARIOS = {
         scenario("fill", *FILES),
         scenario("fill", "{{name}}.md"),
         *with_broken_store("fill", "master.md", "no-such-item.md"),
+    ],
+    "verify": [
+        scenario("verify"),
+        scenario("verify", "{{name}}"),
+        *(scenario("verify", before=b) for b in LOG_BREAKS),
+        *with_broken_store("verify"),
     ],
     "pack": [
         scenario("pack"),

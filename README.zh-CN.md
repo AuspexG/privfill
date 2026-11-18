@@ -78,6 +78,7 @@ privfill.py add <项目名>               录入一项文字
 privfill.py render <母版> <成品路径>   填充母版的副本
 privfill.py fill <文件>...             就地填充
 privfill.py pack <压缩包> <文件>...    把文件打包成 zip
+privfill.py verify                     检查操作日志是否被改动
 privfill.py protocol                   打印录入协议摘要
 ```
 
@@ -119,6 +120,7 @@ privfill.py protocol                   打印录入协议摘要
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
 | `texts.py` | 用法说明和表单各语言的文字 |
 | `packing.py` | 把文件打包成 zip |
+| `activity.py` | 不含任何值、哈希链式的操作日志 |
 | `atomic.py` | 一步写入或替换文件 |
 | `hardening.py` | 禁用核心转储，使进程不可被检查（见 `PROTOCOL.md` 6.1） |
 

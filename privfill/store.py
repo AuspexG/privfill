@@ -44,6 +44,7 @@ class Store:
     """The interface between the commands and wherever items are kept."""
 
     label = ""  # how the form names the store to the person
+    directory = None  # a protected directory beside the items where the activity log may live, if any
 
     def create(self):
         """Make the store exist, empty, if it does not. Returns True if it was created."""
@@ -101,6 +102,7 @@ class FileStore(Store):
     def __init__(self, path):
         self.path = path
         self.label = os.path.basename(path)
+        self.directory = os.path.dirname(path)
 
     def create(self):
         created = self._ensure()

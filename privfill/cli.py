@@ -1,11 +1,13 @@
 """The command line: runs one command and reports item names, counts and exit codes, never values."""
 import contextlib
+import hashlib
 import io
 import json
 import os
 import shutil
 
 from . import __version__
+from .activity import ActivityLog
 from .filling import Missing, fill_file, sub
 from .form import run_form
 from .hardening import harden
@@ -15,13 +17,21 @@ from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
 from .store import StoreError, default_store
 from .texts import USAGE
 
+EVENTS = []  # (command, items, master hash) of what the running command changed; flushed to the log
+LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack", "verify")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
+
+
+def digest(path):
+    """SHA-256 of a file's content, for the log; the path itself is never logged."""
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
 
 
 def read_items(store, names):
@@ -65,6 +75,8 @@ def cmd_form(spec, store):
         items.append({"name": n, "status": code, "type": f["type"], "placeholder": placeholder, "stored": n in now})
         print(f"{n}: {STATUS_TEXT[code]}{note}; type {f['type']}; placeholder {placeholder}")
     RESULT.update(items=items)
+    if rc == 0:
+        EVENTS.append(("form", {i["name"]: i["status"] for i in items}, None))
     return rc
 
 
@@ -110,6 +122,15 @@ def run_cmd(argv, store):
         print(f"privfill {__version__} (entry protocol v{PROTOCOL_VERSION})")
         RESULT.update(version=__version__, protocol=PROTOCOL_VERSION)
         return 0
+    if cmd == "verify":
+        log = LOG[0]
+        if log is None:
+            print("This store has no activity log.")
+            return 1
+        ok, count, message = log.verify()
+        print(f"{message[0].upper()}{message[1:]}." if ok else f"Failed: {message}.")
+        RESULT.update(records=count, intact=ok)
+        return 0 if ok else 1
     if cmd == "protocol":
         print(PROTOCOL)
         RESULT.update(protocol=PROTOCOL_VERSION, types=list(NORMS), field_keys=sorted(FIELD_KEYS))
@@ -140,7 +161,10 @@ def run_cmd(argv, store):
         rc = 0
         for i, path in enumerate(argv[2:], 1):  # file names may hold personal details: refer to files by index
             try:
+                before = digest(path)
                 c = fill_file(path, store)
+                if c:
+                    EVENTS.append(("fill", c, before))
                 RESULT.setdefault("files", []).append({"index": i, "ok": True, "used": c})
                 print(f"File {i}: " + (f"filled {used(c)}." if c else "no placeholders; left untouched."))
             except Missing as e:
@@ -159,8 +183,9 @@ def run_cmd(argv, store):
             print("Usage: render <master file> <output path, may contain placeholders>")
             return 1
         src = argv[2]
+        counter = {}
         try:
-            dst = sub(argv[3], store)
+            dst = sub(argv[3], store, counter=counter)
         except Missing as e:
             print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
             return 2
@@ -168,6 +193,7 @@ def run_cmd(argv, store):
             print("Failed: the output path is the master itself; nothing was written.")
             return 1
         try:
+            before = digest(src)
             shutil.copy2(src, dst)
             c = fill_file(dst, store)
         except Missing as e:
@@ -181,6 +207,9 @@ def run_cmd(argv, store):
                 raise
             print(f"Failed ({type(e).__name__}); nothing was written.")
             return 1
+        for k, n in c.items():
+            counter[k] = counter.get(k, 0) + n
+        EVENTS.append(("render", counter, before))
         RESULT.update(used=c)
         print("Output written; the master is untouched. " + (f"Filled {used(c)}." if c else "The master has no placeholders."))
         return 0
@@ -202,13 +231,25 @@ def run_cmd(argv, store):
         except Exception as e:
             print(f"Failed ({type(e).__name__}); nothing was written.")
             return 1
+        EVENTS.append(("pack", counter, None))
         RESULT.update(packed=len(files), used=counter)
         print(f"Archive written with {len(files)} file(s); the files are untouched. Items used: {used(counter) or 'none'}.")
         return 0
     raise AssertionError("a command is listed in COMMANDS but not handled")
 
 
-def run_without_traceback(argv, store):
+def log_events(log):
+    """Append what the finished command changed. Returns an error exit code if the log cannot be written."""
+    try:
+        for command, items, master in EVENTS:
+            log.append(command, items, master)
+    except OSError as e:
+        print(f"Failed to write the activity log ({type(e).__name__}); the command itself did run.")
+        return 1
+    return 0
+
+
+def run_without_traceback(argv, store, log=None):
     """run_cmd, with any error it did not expect reduced to its type name.
 
     An exception's message or traceback can quote the data it was handling, so neither is ever
@@ -218,7 +259,15 @@ def run_without_traceback(argv, store):
     The store is opened here too (store=None: the default one), so that failing is covered as well.
     """
     try:
-        return run_cmd(argv, default_store() if store is None else store)
+        store = default_store() if store is None else store
+        if log is None and getattr(store, "directory", None):
+            log = ActivityLog(os.path.join(store.directory, "activity.log"))
+        LOG[0] = log
+        code = run_cmd(argv, store)
+        if log and EVENTS:  # also after a partial failure: what did happen is recorded
+            logged = log_events(log)
+            code = code or logged
+        return code
     except StoreError as e:
         print(f"Failed: {e}.")
         return e.code
@@ -230,17 +279,22 @@ def run_without_traceback(argv, store):
         return 1
 
 
-def main(argv, store=None):
-    """Run one command. Items are read and written only through store (default: the vault)."""
+def main(argv, store=None, log=None):
+    """Run one command. Items are read and written only through store (default: the vault).
+
+    The log (default: activity.log beside the store, if the store has a directory) records what changed.
+    """
     harden()  # before anything personal is read
     RESULT.clear()
+    del EVENTS[:]
+    LOG[0] = None
     if "--json" in argv[1:2]:
         argv = argv[:1] + argv[2:]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            code = run_without_traceback(argv, store)
+            code = run_without_traceback(argv, store, log)
         out = {"ok": code == 0, "code": code, "message": buf.getvalue().strip()}
         out.update(RESULT)
         print(json.dumps(out, ensure_ascii=False))
         return code
-    return run_without_traceback(argv, store)
+    return run_without_traceback(argv, store, log)

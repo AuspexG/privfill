@@ -97,7 +97,7 @@ def default_store():
 
     # A passphrase taken from the environment protects nothing, so such a vault skips the slow derivation.
     cost = {"cost": TEST_COST} if os.environ.get(PASSPHRASE_TEST) is not None else {}
-    return VaultStore(vault_path(), PassphraseUnlock(ask_passphrase, **cost))
+    return VaultStore(vault_path(), PassphraseUnlock(ask_passphrase, **cost), history=True)
 
 
 class FileStore(Store):

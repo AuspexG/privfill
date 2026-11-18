@@ -321,6 +321,15 @@ SCENARIOS = {
         scenario("guard", before="registry_is_garbage"),
         *with_broken_store("guard"),
     ],
+    "restore": [
+        scenario("restore"),
+        scenario("restore", "{{name}}"),
+        scenario("restore", "1"),
+        scenario("restore", "999"),
+        scenario("restore", "1", "2"),
+        *with_broken_store("restore"),
+        *with_broken_store("restore", "1"),
+    ],
     "verify": [
         scenario("verify"),
         scenario("verify", "{{name}}"),

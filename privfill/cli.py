@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "guard", "mcp")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "guard", "mcp")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -138,6 +138,26 @@ def run_cmd(argv, store, registry=None):
     if cmd == "version":
         print(f"privfill {__version__} (entry protocol v{PROTOCOL_VERSION})")
         RESULT.update(version=__version__, protocol=PROTOCOL_VERSION)
+        return 0
+    if cmd == "restore":
+        if len(argv) > 3 or not hasattr(store, "backups"):
+            print("Usage: restore [<version>]" if len(argv) > 3 else "This store keeps no backups.")
+            return 1
+        kept = store.backups()
+        if len(argv) == 2:
+            RESULT.update(backups=[{"version": v, "saved": t, "items": n} for v, t, n in kept])
+            if not kept:
+                print("No backups are kept yet.")
+            for v, t, n in kept:
+                print(f"version {v}: saved {t}, " + (f"{n} item(s)" if n is not None else "unreadable"))
+            return 0
+        if not argv[2].isdigit() or int(argv[2]) not in [v for v, _, _ in kept]:
+            print("Failed: there is no backup of that version. `restore` with no argument lists them.")
+            return 1
+        n = store.restore(int(argv[2]))
+        EVENTS.append(("restore", {}, None))
+        RESULT.update(restored=n)
+        print(f"Restored the backup as the current vault: {n} item(s). The vault it replaced was kept as a backup.")
         return 0
     if cmd == "verify":
         log = LOG[0]

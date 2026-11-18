@@ -126,6 +126,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
 | `privfill manage` | Open the local manager window (for the person, not the caller). Prints nothing. |
 | `privfill mcp` | Serve `keys`, `form`, `render` and `pack` as Model Context Protocol tools on standard input and output (see `docs/claude-code.md`). Each tool returns its command's `--json` object, with `isError` true when `code` is not 0. No tool takes or returns a value. |
+| `privfill restore [<version>]` | Without a version, list the vault's backups (version, time saved, item count). With one, put that backup back as a new version; the vault it replaces is kept as a backup. See `docs/vault.md`. |
 | `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
 
 Every file that `render`, `fill` or `pack` fills or writes is recorded, by path and content hash, in a registry inside the vault's directory. The caller must not read it. If the record cannot be made, `render` and `pack` write nothing and exit with code 1, and `fill` reports the file as failed.
@@ -166,6 +167,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
 | `verify` | `intact`, `records` |
+| `restore` | `backups`: a list of `{version, saved, items}`; or `restored`: the item count |
 
 `status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the vault.
 

@@ -90,6 +90,16 @@ class VaultCase(unittest.TestCase):
         with open(self.path, "w", encoding="utf8") as f:
             json.dump(vault, f)
 
+    def edit_sealed(self, change):
+        """Change the vault file and seal it again with the real key, as only the key's holder could:
+        what is then left to catch the change is the per-item encryption."""
+        store = self.store()
+        vault = store._opened()
+        change(vault)
+        vault["seal"] = store._seal(vault, store._data_key)
+        with open(self.path, "w", encoding="utf8") as f:
+            json.dump(vault, f)
+
     @staticmethod
     def item(vault, name):
         return next(i for i in vault["items"] if i["name"] == name)
@@ -278,7 +288,7 @@ class TestTampering(VaultCase):
                 if i["name"] != "phone":
                     i["ciphertext"] = i["ciphertext"][::-1]
 
-        self.edit(ruin_others)
+        self.edit_sealed(ruin_others)
         self.assertEqual(self.store().read("phone"), "13800138000")
 
     def test_a_file_that_is_not_a_vault_is_reported_not_overwritten(self):
@@ -431,7 +441,7 @@ class TestCommands(VaultCase):
                 if i["name"] != "phone":
                     i["ciphertext"] = i["ciphertext"][::-1]
 
-        self.edit(ruin_others)
+        self.edit_sealed(ruin_others)
         rc, out = self.tool("--json", "render", self.file("m.md", "{{phone|last4}}"), self.file("o.md"))
         self.assertEqual(rc, 0, out)
         self.assertEqual(json.loads(out)["used"], {"phone": 1})
@@ -442,7 +452,7 @@ class TestCommands(VaultCase):
         master = self.file("m.md", "{{name}} {{phone}}")
         rc, out = self.tool("--json", "render", master, self.file("o.md"))
         self.assertEqual(rc, 1, out)
-        self.assertIn("'phone' cannot be decrypted", out)
+        self.assertIn("does not match its seal", out)
         self.assertFalse(os.path.exists(self.file("o.md")))
         rc, out = self.tool("fill", master)
         self.assertEqual(rc, 1, out)

@@ -80,6 +80,7 @@ privfill.py render <母版> <成品路径>   填充母版的副本
 privfill.py fill <文件>...             就地填充
 privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py verify                     检查操作日志是否被改动
+privfill.py restore [<版本>]           列出保险库的备份，或恢复其中一个
 privfill.py protocol                   打印录入协议摘要
 privfill.py guard                      供工具钩子调用：这次调用可以放行吗？
 privfill.py mcp                        作为 MCP 服务提供这些工具（标准输入输出）

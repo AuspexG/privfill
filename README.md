@@ -82,6 +82,7 @@ privfill.py render <master> <output>   fill a copy of a master
 privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py verify                     check the activity log
+privfill.py restore [<version>]        list the vault's backups, or put one back
 privfill.py protocol                   print the entry protocol summary
 privfill.py guard                      answer a tool hook: may this call go ahead?
 privfill.py mcp                        serve the tools as an MCP server (stdin/stdout)

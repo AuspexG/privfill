@@ -36,7 +36,11 @@ mkdir -p "$DEST"
 chmod 700 "$DEST"
 install_program "$DEST"
 echo "Program:   $DEST/privfill.py"
-echo "Vault:     $DEST/vault.json (created, with a passphrase you choose, the first time you enter a detail)"
+echo "Vault:     $DEST/vault.json (created the first time you enter a detail; unlocked by the desktop keyring, or a passphrase you choose)"
+OLD=""
+for n in profile.md 个人信息.md; do
+    if [ -f "$DEST/$n" ]; then OLD="$DEST/$n"; break; fi
+done
 
 if [ "$SKILL" = 1 ]; then
     SK="$HOME/.claude/skills/privfill"
@@ -59,6 +63,20 @@ else
     echo "Vault:     the Python library 'cryptography' is NOT installed; privfill cannot store or fill anything without it."
     echo "           Install it with the system package manager:"
     echo "           python-cryptography (Arch), python3-cryptography (Debian, Ubuntu, Fedora)."
+fi
+
+if "$PY" -c "import secretstorage" >/dev/null 2>&1; then
+    echo "Keyring:   secretstorage found; a new vault is unlocked by the desktop keyring"
+else
+    echo "Keyring:   the Python library 'secretstorage' is not installed; a new vault will use a passphrase."
+    echo "           For keyring unlock: python-secretstorage (Arch), python3-secretstorage (Debian, Ubuntu, Fedora)."
+fi
+
+if [ -n "$OLD" ]; then
+    echo
+    echo "Upgrade:   a plain-text data file from an earlier version is still there: $OLD"
+    echo "           Move it into the encrypted vault with:  $PY $DEST/privfill.py migrate"
+    echo "           It prints counts only and asks you, in a local window, before removing the old file."
 fi
 
 cat <<EOF

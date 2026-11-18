@@ -24,6 +24,8 @@ ever contains a value.
                                          (every path may contain placeholders)
   privfill.py verify                     check the activity log was not altered
   privfill.py restore [<version>]        list the vault's backups, or put one back
+  privfill.py migrate [<old file>]       move a plain-text data file of an earlier
+                                         version into the vault
   privfill.py unlock [add|change|remove] [keyring|passphrase]
                                          list or change how the vault is unlocked
   privfill.py guard                      for a tool hook: read a tool call as JSON on
@@ -114,6 +116,11 @@ UI = {
     "mgr_save_dlg": ("Save backup as", "备份保存为"),
     "mgr_open_dlg": ("Choose a backup file", "选择备份文件"),
     "mgr_no_qt": ("the manager window needs PyQt6, which is not installed", "管理窗口需要 PyQt6，但它没有安装"),
+    "migrate_confirm": ("privfill moved your details into the encrypted vault and checked every one.\n\n"
+                        "Delete the old plain-text file now? It is overwritten first, but on SSDs and journaling "
+                        "file systems traces may remain.",
+                        "privfill 已把你的信息移入加密保险库，并逐项核对无误。\n\n"
+                        "现在删除旧的明文文件吗？删除前会先覆盖，但在 SSD 和日志型文件系统上仍可能留下痕迹。"),
     "file_head": ("# Personal details (private)\n\n"
                   "> Managed by privfill. Do not let an AI read this file and do not commit it anywhere.\n\n"
                   "| Item | Value |\n|---|---|\n",

@@ -83,6 +83,7 @@ privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py verify                     check the activity log
 privfill.py restore [<version>]        list the vault's backups, or put one back
+privfill.py migrate [<old file>]       move an earlier version's plain-text file into the vault
 privfill.py unlock [add|change|remove] [keyring|passphrase]
                                        list or change how the vault is unlocked
 privfill.py protocol                   print the entry protocol summary
@@ -122,8 +123,8 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 - An assistant that can read files could read a filled output, and could see the names of your items in the vault. Use your tool's permission system so that every access needs your approval; for Claude Code this takes three lines of settings.
 - Anything you type into the chat has already been sent. Use the form.
 - Filled outputs are ordinary files with your details in them. Where they go next is up to you.
-- Your details are stored in an encrypted vault, unlocked by a passphrase you type into a local window each time they are used. Someone who gets the file without the passphrase learns the item names, not the values. It does not protect against a program running as you while you type the passphrase, and a forgotten passphrase cannot be recovered. The format and the full boundary are in [docs/vault.md](docs/vault.md).
-- A plain-text `profile.md` from an earlier version is not read or migrated yet: enter the details again and remove the old file yourself.
+- Your details are stored in an encrypted vault, unlocked by the desktop keyring (you type nothing) or by a passphrase you type into a local window; `privfill.py unlock` switches. Someone who gets the file without the key learns the item names, not the values. It does not protect against a program running as you while the vault can be unlocked, and if every unlock method is lost the values cannot be recovered. The format, backups and the full boundary are in [docs/vault.md](docs/vault.md).
+- A plain-text `profile.md` from an earlier version stays in plain text until you run `privfill.py migrate` ([docs/vault.md](docs/vault.md#upgrading-from-the-plain-text-data-file)).
 - The `id_card` type validates PRC resident ID numbers only. Use `text` with a `pattern` for other documents.
 
 ## Layout
@@ -135,6 +136,8 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `cli.py` | the commands and what they report |
 | `store.py` | the `Store` interface (create, list names, read, write and delete one item), its errors, and the plain-text data file of earlier versions |
 | `vault.py` | the encrypted vault the commands use, and the unlock methods |
+| `keyring.py` | unlocking by the desktop keyring (Secret Service) |
+| `migrate.py` | moving an earlier version's plain-text data file into the vault |
 | `normalize.py` | the rules that tidy each type of answer |
 | `protocol.py` | validation of the entry protocol, and its summary |
 | `manager.py` | what the manager window does: list, reveal, edit, delete, back up, restore |

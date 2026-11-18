@@ -452,11 +452,13 @@ class VaultStore(Store):
         if not os.path.exists(self.path):
             return {"items": []}
         vault = self._parse(self.path)
-        if self.history and vault["version"] < self._seen(vault["id"]) and not self._holding:
-            # A writer may have saved between the two reads: look again while no writer can.
+        behind = self.history and vault["version"] < self._seen(vault["id"])
+        if behind and not self._holding:
+            # A writer may have saved between the two reads: read both again while no writer can.
             with self._locked():
                 vault = self._parse(self.path)
-        if self.history and vault["version"] < self._seen(vault["id"]):
+                behind = vault["version"] < self._seen(vault["id"])
+        if behind:
             raise Damaged("the vault is older than the newest one saved on this machine; it may have been "
                           "replaced by an older copy. `privfill restore` lists the backups")
         return vault

@@ -109,6 +109,42 @@ def tk_secret(text):
         root.destroy()
 
 
+CONFIRM_TEST = "PRIVFILL_CONFIRM_TEST"  # test hook: "yes" or "no" instead of the dialog, fake vault only
+
+
+def ask_confirm(text):
+    """Ask the person a yes/no question in a local dialog. True only on an explicit yes."""
+    test = os.environ.get(CONFIRM_TEST)
+    if test is not None:
+        vault = os.environ.get("PRIVFILL_VAULT")
+        if not vault or os.path.realpath(os.path.expanduser(vault)).startswith(
+                os.path.realpath(os.path.join(os.path.expanduser("~"), ".privfill")) + os.sep):
+            raise RuntimeError(f"{CONFIRM_TEST} requires PRIVFILL_VAULT to name a vault outside ~/.privfill")
+        return test == "yes"
+    if have_qt():
+        from PyQt6 import QtWidgets
+
+        app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(["privfill"])  # noqa: F841
+        box = QtWidgets.QMessageBox()
+        box.setWindowTitle("privfill")
+        box.setText(text)
+        box.setStandardButtons(QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No)
+        box.setDefaultButton(QtWidgets.QMessageBox.StandardButton.No)
+        box.raise_()
+        box.activateWindow()
+        return box.exec() == QtWidgets.QMessageBox.StandardButton.Yes
+    import tkinter as tk
+    from tkinter import messagebox
+
+    root = tk.Tk()
+    root.withdraw()
+    root.attributes("-topmost", True)
+    try:
+        return bool(messagebox.askyesno("privfill", text, default="no", parent=root))
+    finally:
+        root.destroy()
+
+
 def example_from(hint):
     m = re.search(r"(?:例如|e\.g\.,?|for example,?)\s*([^，,。；;.]+(?:\.[^\s，,。；;]+)*)", hint or "", flags=re.I)
     return m.group(1).strip() if m else ""

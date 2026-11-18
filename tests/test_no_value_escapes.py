@@ -75,7 +75,8 @@ class World:
         self.dir = self.tmp.name
         self.data = self.path("store", "vault.json")
         self.env = {k: v for k, v in os.environ.items() if not k.startswith("PRIVFILL_")}
-        self.env.update(PRIVFILL_VAULT=self.data, PRIVFILL_PASSPHRASE_TEST=PASSPHRASE, PRIVFILL_LANG="en",
+        self.env.update(HOME=self.path("home"),  # never the person's own home: nothing here may find their files
+                        PRIVFILL_VAULT=self.data, PRIVFILL_PASSPHRASE_TEST=PASSPHRASE, PRIVFILL_LANG="en",
                         QT_QPA_PLATFORM="offscreen")
         rc, out, err = self.run_tool(["form", json.dumps(SPEC)], answers=STORED)
         case.assertEqual(rc, 0, "seeding failed")
@@ -169,6 +170,20 @@ class World:
         with open(self.path("store", "outputs.json"), "ab") as f:
             f.write(b"\xff{" + STORED["phone"].encode("utf8"))
 
+    def old_data_file(self):
+        """A plain-text data file of an earlier version, holding the stored values and some refused ones."""
+        values = {**{f"old {k}": v for k, v in STORED.items()}, **{f"refused {k}": v for k, v in REFUSED.items()}}
+        rows = "".join(f"| {k} | {v} |\n" for k, v in values.items() if "|" not in v and "\n" not in v)
+        self.write("old/profile.md", "| Item | Value |\n|---|---|\n" + rows)
+
+    def old_file_conflicts(self):
+        """The old file disagrees with the vault about stored items."""
+        rows = "".join(f"| {k} | {v[::-1]} |\n" for k, v in STORED.items() if "|" not in v and "\n" not in v)
+        self.write("old/profile.md", "| Item | Value |\n|---|---|\n" + rows)
+
+    def old_file_is_garbage(self):
+        self.write("old/profile.md", b"| name | \xff\xfe" + STORED["name"].encode("utf8") + b" |\n\x00|")
+
     # Ways to break the activity log beside it.
     @property
     def log(self):
@@ -205,6 +220,8 @@ FILES = ["filled-twice.md", "value-as-format.md", "value-as-name.json", "master.
 LOG_BREAKS = ["log_holds_a_value", "log_is_garbage", "log_is_locked", "log_is_a_directory"]
 STORE_BREAKS = ["corrupt_store", "truncate_store", "alter_store", "store_is_not_a_vault", "lock_store",
                 "store_is_a_directory"]
+CONFIRM_NO = {"PRIVFILL_CONFIRM_TEST": "no"}
+CONFIRM_YES = {"PRIVFILL_CONFIRM_TEST": "yes"}
 FAKE_KEYRING = {"PRIVFILL_KEYRING_TEST": "keyring.json"}
 SHOT = {"PRIVFILL_MANAGER_SHOT": "shot.png"}
 WRONG_PASSPHRASE = {"PRIVFILL_PASSPHRASE_TEST": "not-the-passphrase"}
@@ -333,6 +350,18 @@ SCENARIOS = {
         *with_broken_store("unlock"),
         *with_broken_store("unlock", "change", "passphrase"),
     ],
+    "migrate": [
+        scenario("migrate"),
+        scenario("migrate", "{{name}}"),
+        scenario("migrate", "old/profile.md", before="old_data_file", env=CONFIRM_NO),
+        scenario("migrate", "old/profile.md", before="old_data_file", env=CONFIRM_YES),
+        scenario("migrate", "old/profile.md", before="old_file_conflicts", env=CONFIRM_YES),
+        scenario("migrate", "old/profile.md", before="old_file_is_garbage", env=CONFIRM_NO),
+        scenario("migrate", "store/vault.json", env=CONFIRM_NO),
+        scenario("migrate", "a", "b"),
+        *(scenario("migrate", "old/profile.md", before=["old_data_file", b], env=CONFIRM_NO) for b in STORE_BREAKS),
+        scenario("migrate", "old/profile.md", before="old_data_file", env=dict(CONFIRM_NO, **WRONG_PASSPHRASE)),
+    ],
     "restore": [
         scenario("restore"),
         scenario("restore", "{{name}}"),
@@ -373,8 +402,8 @@ class TestNoValueEscapes(unittest.TestCase):
         for prefix in ([], ["--json"]):
             world = World(self)
             try:
-                if sc["before"]:
-                    getattr(world, sc["before"])()
+                for before in [sc["before"]] if isinstance(sc["before"], str) else sc["before"] or []:
+                    getattr(world, before)()
                 rc, out, err = world.run_tool(prefix + sc["args"], answers=sc["answers"], env=sc["env"])
             finally:
                 world.close()

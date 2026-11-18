@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "unlock", "guard", "mcp")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "unlock", "migrate", "guard", "mcp")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -162,6 +162,58 @@ def cmd_unlock(args, store):
     return 0
 
 
+def cmd_migrate(args, store):
+    """Move a plain-text data file of an earlier version into the vault. Prints counts, never values."""
+    from .form import ask_confirm
+    from .migrate import WIPE_LIMITS, copies_of, find_old_file, migrate, off_limits, wipe
+    from .texts import ui
+
+    if len(args) > 1:
+        print("Usage: migrate [<old data file>]")
+        return 1
+    program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    old = os.path.abspath(args[0]) if args else find_old_file(program_dir)
+    if not old or not os.path.isfile(old):
+        print("No plain-text data file was found; there is nothing to migrate." if not args
+              else "Failed: that file does not exist.")
+        RESULT.update(found=False)
+        return 0 if not args else 1
+    if off_limits(old):
+        print("Failed: a test run may not read the person's own data directory.")
+        return 1
+    if os.path.abspath(old) == os.path.abspath(getattr(store, "path", "")):
+        print("Failed: that is the vault itself.")
+        return 1
+    r = migrate(old, store)
+    EVENTS.append(("migrate", dict({n: "added" for n in r["added"]}, **{n: "present" for n in r["present"]}), None))
+    RESULT.update(found=True, total=r["total"], added=len(r["added"]), present=len(r["present"]),
+                  conflicts=r["conflicts"], mismatched=len(r["mismatched"]))
+    print(f"Old file: {r['total']} item(s). Added to the vault: {len(r['added'])}. Already there with the same value: {len(r['present'])}.")
+    if r["conflicts"] or r["mismatched"]:
+        if r["conflicts"]:
+            print(f"Stopped: {len(r['conflicts'])} item(s) are already in the vault with a different value and were not "
+                  f"changed: {', '.join(r['conflicts'])}. Decide which value is right in `privfill manage`, then run migrate again.")
+        if r["mismatched"]:
+            print(f"Stopped: {len(r['mismatched'])} item(s) did not read back the same from the vault.")
+        print("The old file was left untouched.")
+        return 1
+    print(f"Verified: all {r['total']} item(s) read back from the vault exactly as in the old file.")
+    copies = copies_of(old, program_dir)
+    RESULT.update(copies=copies)
+    if copies:
+        print("These look like copies of the old file and also hold your details in plain text; remove them yourself: "
+              + ", ".join(copies) + ".")
+    if ask_confirm(ui("migrate_confirm")):
+        wipe(old)
+        RESULT.update(deleted=True)
+        print("The old file was overwritten and deleted. " + WIPE_LIMITS)
+    else:
+        RESULT.update(deleted=False)
+        print("The old file was kept, still in plain text. Once you no longer need it, run migrate again "
+              "to be offered its removal, or delete it yourself. " + WIPE_LIMITS)
+    return 0
+
+
 def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
@@ -181,6 +233,8 @@ def run_cmd(argv, store, registry=None):
         return 0
     if cmd == "unlock":
         return cmd_unlock(argv[2:], store)
+    if cmd == "migrate":
+        return cmd_migrate(argv[2:], store)
     if cmd == "restore":
         if len(argv) > 3 or not hasattr(store, "backups"):
             print("Usage: restore [<version>]" if len(argv) > 3 else "This store keeps no backups.")

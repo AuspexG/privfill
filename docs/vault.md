@@ -118,6 +118,20 @@ A restored backup becomes a new version (higher than any seen), so it is not mis
 
 `privfill.py manage` can export every item to a new file in this same format, with the data key wrapped under a passphrase chosen for the backup (so a backup does not depend on the unlock method or the machine it came from) and import it again. The export refuses to overwrite a file and is written in one step. A backup holds the same things the vault file does, and the same limits apply: names, types, update times and value lengths are readable without its passphrase, and a forgotten backup passphrase cannot be recovered. Importing asks before replacing items that exist.
 
+## Upgrading from the plain-text data file
+
+Versions before the vault kept items in a plain-text file, `~/.privfill/profile.md` (in the earliest versions `个人信息.md`, possibly next to the program, or wherever `PRIVFILL_DATA` pointed). To move it into the vault:
+
+1. Install the new version (`./install.sh`). It says so if it finds an old data file.
+2. Run `python3 ~/.privfill/privfill.py migrate` (or `migrate <path>` for a file elsewhere).
+3. The program writes every item the vault does not have yet, then reads every item back from the vault file and compares it with the old file. It prints counts only.
+4. If an item is already in the vault with a different value, or anything reads back differently, it stops and leaves both the vault's value and the old file untouched. Decide in `privfill.py manage`, then run `migrate` again.
+5. If everything matched, it lists files that look like copies of the old one (same content, or the same name with a suffix, in the directories privfill has used), and asks you in a local window whether to delete the old file. Only a yes there deletes it: the file is overwritten with random bytes, flushed and removed.
+
+`migrate` can be run any number of times: items already in the vault with the same value are left alone, and with no old file it says there is nothing to do.
+
+**Limits of deletion.** Overwriting a file does not reliably erase it on journaling or copy-on-write file systems (ext4 with data journaling, btrfs, ZFS) or on SSDs, which write elsewhere and keep old blocks until they reuse them. It does nothing for backups, snapshots, synced folders or a copy in a git repository. Full-disk encryption is what protects data that may remain.
+
 ## Dependency
 
 Encryption uses the Python library `cryptography`, installed with the system package manager: `python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora. Without it, every command that needs a value stops with exit code 1 and a message naming these packages.
@@ -140,4 +154,4 @@ A changed item is noticed the next time it is used, so a value cannot be silentl
 - **A caller that sets up its own vault.** The test hook `PRIVFILL_PASSPHRASE_TEST` takes the passphrase from the environment, for vaults of fake data. It refuses any vault inside `~/.privfill`, but a caller that ignores the rules could point `PRIVFILL_VAULT` elsewhere and create a vault whose passphrase it knows. The sign is that you were never asked to choose a passphrase.
 - **Filled outputs.** They are ordinary files containing your details in plain text.
 - **Rollback of both files at once.** Putting back older copies of both `vault.json` and `vault.state.json` is not detected (see Durability).
-- **A plain-text data file from an earlier version** (`profile.md`). It is not read, not moved into the vault and not deleted. Until a migration command exists, enter the details again and remove the old file yourself.
+- **A plain-text data file from an earlier version** until it is migrated (see below), and any copy of it made before.

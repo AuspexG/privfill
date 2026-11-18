@@ -81,6 +81,7 @@ privfill.py fill <文件>...             就地填充
 privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py verify                     检查操作日志是否被改动
 privfill.py restore [<版本>]           列出保险库的备份，或恢复其中一个
+privfill.py migrate [<旧文件>]         把旧版本的明文数据文件移入保险库
 privfill.py unlock [add|change|remove] [keyring|passphrase]
                                        查看或更改保险库的解锁方式
 privfill.py protocol                   打印录入协议摘要
@@ -120,8 +121,8 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 - 助手只要有读文件的能力，就读得到填好的成品，也看得到保险库里各项的名称。请配合你所用工具的权限机制，让每次访问都需要你批准；Claude Code 里只要三行设置。
 - 你在对话里直接说出的内容已经发送出去了。请用表单录入。
 - 填好的成品是普通文件，里面是明文。它之后去哪里由你决定。
-- 个人信息保存在加密的保险库里，每次使用时由你在本机窗口里输入口令解锁。拿到文件却没有口令的人只能看到项目名，看不到内容。它防不了在你输入口令时以你的身份运行的程序；口令忘了无法找回。文件格式和完整的保护边界见 [docs/vault.md](docs/vault.md)（英文）。
-- 早期版本留下的明文 `profile.md` 目前不会被读取或迁移：请重新录入，并自行删除旧文件。
+- 个人信息保存在加密的保险库里，由桌面密钥环（你什么都不用输入）或你在本机窗口里输入的口令解锁；`privfill.py unlock` 可以切换。拿到文件却没有密钥的人只能看到项目名，看不到内容。它防不了在保险库可被解锁时以你的身份运行的程序；所有解锁方式都丢失后无法找回。文件格式和完整的保护边界见 [docs/vault.md](docs/vault.md)（英文）。
+- 早期版本留下的明文 `profile.md` 在运行 `privfill.py migrate` 之前仍是明文（见 [docs/vault.md](docs/vault.md#upgrading-from-the-plain-text-data-file)）。
 - `id_card` 类型只校验中国大陆居民身份证号。其他证件请用 `text` 加 `pattern`。
 
 ## 代码结构
@@ -133,6 +134,8 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 | `cli.py` | 各个命令和它们的输出 |
 | `store.py` | `Store` 接口（创建、列出项目名、读、写、删除一项）、它的错误类型，以及早期版本的明文数据文件 |
 | `vault.py` | 各命令使用的加密保险库，以及解锁方式 |
+| `keyring.py` | 通过桌面密钥环（Secret Service）解锁 |
+| `migrate.py` | 把旧版本的明文数据文件移入保险库 |
 | `normalize.py` | 各类型答案的整理规则 |
 | `protocol.py` | 录入协议的校验和摘要 |
 | `manager.py` | 管理窗口的逻辑：列出、显示、修改、删除、备份、恢复 |

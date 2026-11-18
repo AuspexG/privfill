@@ -94,7 +94,7 @@ The program reports each item's status (stored, updated, unchanged, left empty) 
 | 4 | The protocol is invalid |
 | 5 | The user entered a wrong vault passphrase. Ask them before trying again. |
 
-Commands that use a value make the program ask the user for their vault passphrase in a local window. You never see it, never ask for it and never supply it. If the user closes that window the exit code is 3.
+Commands that use a value unlock the vault through the desktop keyring when it has the key, and otherwise make the program ask the user for their vault passphrase in a local window. You never see either, never ask for them and never supply them; never query the keyring yourself (`secret-tool`, `secretstorage` and the like). If the user closes the passphrase window the exit code is 3. Pass on any `Note:` line to the user. To change how the vault is unlocked, the user runs `privfill.py unlock` (see `docs/vault.md`); suggest it, do not choose for them.
 
 Put `--json` before the subcommand for machine-readable output.
 

@@ -24,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "guard", "mcp")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "manage", "render", "fill", "pack", "verify", "restore", "unlock", "guard", "mcp")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -122,6 +122,46 @@ def record_output(registry, path):
         return False
 
 
+UNLOCK_USAGE = ("Usage: unlock (list the methods) | unlock add keyring | unlock add passphrase | "
+                "unlock change passphrase | unlock remove keyring | unlock remove passphrase")
+
+
+def cmd_unlock(args, store):
+    """List or change how the vault is unlocked. The data key is rewrapped; no item is re-encrypted."""
+    if not hasattr(store, "methods"):
+        print("This store is not unlocked.")
+        return 1
+    by_method = {u.method: u for u in store.unlocks}
+    if not args:
+        enrolled = store.methods()
+        keyring = by_method.get("keyring")
+        available = bool(keyring and keyring.available())
+        RESULT.update(methods=enrolled, keyring_available=available)
+        print("Unlocked by: " + (", ".join(enrolled) or "(no vault yet)") + ". Desktop keyring: "
+              + ("available." if available else f"not available ({keyring.why_not if keyring else 'not supported'})."))
+        return 0
+    if len(args) != 2 or args[0] not in ("add", "change", "remove") or args[1] not in by_method \
+            or (args[0] == "change" and args[1] != "passphrase"):
+        print(UNLOCK_USAGE)
+        return 1
+    action, method = args
+    enrolled = store.methods()
+    if action == "add" and method == "passphrase" and method in enrolled:
+        print("Failed: the vault already has a passphrase; `unlock change passphrase` replaces it.")
+        return 1
+    if action == "change" and method not in enrolled:
+        print("Failed: the vault has no passphrase yet; `unlock add passphrase` adds one.")
+        return 1
+    if action == "remove":
+        store.withdraw(method)
+    else:
+        store.enroll(by_method[method])
+    EVENTS.append(("unlock", {method: action}, None))
+    RESULT.update(methods=store.methods())
+    print(f"Done: the vault is now unlocked by {', '.join(store.methods())}. No item was re-encrypted.")
+    return 0
+
+
 def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
@@ -139,6 +179,8 @@ def run_cmd(argv, store, registry=None):
         print(f"privfill {__version__} (entry protocol v{PROTOCOL_VERSION})")
         RESULT.update(version=__version__, protocol=PROTOCOL_VERSION)
         return 0
+    if cmd == "unlock":
+        return cmd_unlock(argv[2:], store)
     if cmd == "restore":
         if len(argv) > 3 or not hasattr(store, "backups"):
             print("Usage: restore [<version>]" if len(argv) > 3 else "This store keeps no backups.")
@@ -320,6 +362,8 @@ def run_without_traceback(argv, store, log=None, registry=None):
             registry = Registry(os.path.join(store.directory, FILE_NAME))
         LOG[0] = log
         code = run_cmd(argv, store, registry)
+        if getattr(store, "notice", None):
+            print(f"Note: {store.notice}.")
         if log and EVENTS:  # also after a partial failure: what did happen is recorded
             logged = log_events(log)
             code = code or logged

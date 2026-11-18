@@ -102,6 +102,17 @@ class TestConcurrentWriters(DurableCase):
         self.assertEqual(self.store().read("item 3"), VALUES["street"])
 
 
+    def test_readers_during_writes_never_see_a_false_rollback(self):
+        self.seed()
+        writers = [self.child(f"item {i}", VALUES["street"]) for i in range(6)]
+        reader = self.store()
+        seen = 0
+        while any(p.poll() is None for p in writers):
+            reader.names()  # raises Damaged on a (false) rollback
+            seen += 1
+        self.assertEqual([p.wait(60) for p in writers], [0] * len(writers))
+
+
 class TestCrashes(DurableCase):
     def crash(self, point):
         self.seed()

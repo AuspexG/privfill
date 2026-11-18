@@ -205,6 +205,7 @@ FILES = ["filled-twice.md", "value-as-format.md", "value-as-name.json", "master.
 LOG_BREAKS = ["log_holds_a_value", "log_is_garbage", "log_is_locked", "log_is_a_directory"]
 STORE_BREAKS = ["corrupt_store", "truncate_store", "alter_store", "store_is_not_a_vault", "lock_store",
                 "store_is_a_directory"]
+FAKE_KEYRING = {"PRIVFILL_KEYRING_TEST": "keyring.json"}
 SHOT = {"PRIVFILL_MANAGER_SHOT": "shot.png"}
 WRONG_PASSPHRASE = {"PRIVFILL_PASSPHRASE_TEST": "not-the-passphrase"}
 
@@ -320,6 +321,17 @@ SCENARIOS = {
         scenario("guard", before="outputs_named_by_values"),
         scenario("guard", before="registry_is_garbage"),
         *with_broken_store("guard"),
+    ],
+    "unlock": [
+        scenario("unlock"),
+        scenario("unlock", "{{name}}"),
+        scenario("unlock", "add", "{{name}}"),
+        scenario("unlock", "add", "passphrase"),
+        scenario("unlock", "change", "passphrase"),
+        scenario("unlock", "remove", "passphrase"),
+        scenario("unlock", "add", "keyring", env=FAKE_KEYRING),
+        *with_broken_store("unlock"),
+        *with_broken_store("unlock", "change", "passphrase"),
     ],
     "restore": [
         scenario("restore"),

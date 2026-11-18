@@ -201,7 +201,7 @@ class TestUnlocking(VaultCase):
     def test_the_default_key_derivation_is_the_memory_hard_one(self):
         """Not the cheap one the rest of the suite uses: scrypt at 128 MiB per guess."""
         VaultStore(self.path, PassphraseUnlock(Asker(PASSPHRASE))).write("name", "Jane Roe")
-        entry = json.loads(self.raw())["unlock"]
+        (entry,) = json.loads(self.raw())["unlock"]
         self.assertEqual((entry["kdf"], entry["n"], entry["r"], entry["p"]), ("scrypt", 2 ** 17, 8, 1))
         self.assertEqual(VaultStore(self.path, PassphraseUnlock(Asker(PASSPHRASE))).read("name"), "Jane Roe")
         with self.assertRaises(Locked):
@@ -306,12 +306,12 @@ class TestTampering(VaultCase):
         self.seed()
         self.edit(lambda v: self.item(v, "phone").update(nonce="AAAA"))
         self.assert_damaged("phone")
-        self.edit(lambda v: v["unlock"].update(nonce="AAAA"))
+        self.edit(lambda v: v["unlock"][0].update(nonce="AAAA"))
         self.assert_damaged("name")
 
     def test_a_vault_cannot_ask_for_an_absurd_key_derivation(self):
         self.seed()
-        self.edit(lambda v: v["unlock"].update(n=2 ** 30))
+        self.edit(lambda v: v["unlock"][0].update(n=2 ** 30))
         with self.assertRaises(Damaged):
             self.store().read("name")
 

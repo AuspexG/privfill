@@ -31,6 +31,14 @@ SWEEP = "it would list or search a place that holds a filled output or the privf
 SUBSTITUTION = "a privfill command may not contain a command substitution"
 PAYLOAD = "the hook payload was not understood"
 REGISTRY = "the output registry could not be read"
+KEYRING = "it would read the desktop keyring that may hold the key to the privfill vault"
+
+# Shell text that reaches for the desktop keyring directly. Best effort: a script written to a file
+# first is not seen (docs/guard.md, Limits).
+KEYRING_TEXT = re.compile(
+    r"secret-tool|kwallet-query|kwalletcli|kwalletd\d*|secretstorage|org\.freedesktop\.secrets|"
+    r"org\.freedesktop\.Secret|gnome-keyring|\bimport\s+keyring\b|\bfrom\s+keyring\b|-m\s+keyring\b|"
+    r"\bkeyring\s+(get|del|set)\b", re.I)
 
 # Words in the key of a tool input (file_path, notebookPath, paths) that say its value is a path, or a shell command.
 PATH_KEYS = {"path", "file", "filename", "filepath", "dir", "directory", "directories", "folder", "uri", "url", "source", "glob", "notebook"}
@@ -209,6 +217,8 @@ class Guard:
     def shell(self, command, cwd):
         if not isinstance(command, str):
             return PAYLOAD
+        if KEYRING_TEXT.search(command):
+            return KEYRING
         text = command.replace("`", " ; ").replace("\n", " ; ")
         try:
             lexer = shlex.shlex(text, posix=True, punctuation_chars=True)

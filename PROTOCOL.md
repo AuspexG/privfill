@@ -126,6 +126,7 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
 | `privfill manage` | Open the local manager window (for the person, not the caller). Prints nothing. |
 | `privfill mcp` | Serve `keys`, `form`, `render` and `pack` as Model Context Protocol tools on standard input and output (see `docs/claude-code.md`). Each tool returns its command's `--json` object, with `isError` true when `code` is not 0. No tool takes or returns a value. |
+| `privfill unlock [add\|change\|remove keyring\|passphrase]` | Without arguments, list the unlock methods the vault has and whether a desktop keyring is reachable. With them, add, change or remove a method; the data key is rewrapped and no item is re-encrypted. The last method cannot be removed. See `docs/vault.md`. |
 | `privfill restore [<version>]` | Without a version, list the vault's backups (version, time saved, item count). With one, put that backup back as a new version; the vault it replaces is kept as a backup. See `docs/vault.md`. |
 | `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
 
@@ -144,7 +145,7 @@ Every file that `render`, `fill` or `pack` fills or writes is recorded, by path 
 | 4 | The entry protocol is invalid |
 | 5 | The vault was not unlocked: the person entered a wrong passphrase |
 
-Every command that reads or writes a value (`form`, `add`, `render`, `fill`, `pack`) makes the program ask the person for the vault passphrase in a local dialog; `keys` does not. The caller never supplies the passphrase. If the person closes the dialog the exit code is 3; after exit code 5, ask the person before trying again. A vault that is unreadable or was altered, and a missing encryption library, give exit code 1 with a message that says which.
+Every command that reads or writes a value (`form`, `add`, `render`, `fill`, `pack`) unlocks the vault: through the desktop keyring if the vault has that method and the keyring holds its entry, otherwise by asking the person for the vault passphrase in a local dialog; `keys` does not unlock. The caller never supplies the passphrase or the keyring secret. A line starting with `Note:` tells the person something about how the vault was set up (for example that no keyring was reachable). If the person closes the dialog the exit code is 3; after exit code 5, ask the person before trying again. A vault that is unreadable or was altered, and a missing encryption library, give exit code 1 with a message that says which.
 
 If the activity log cannot be written after a command has done its work, the command reports that and exits with 1 (unless it already failed); its effect is not undone.
 
@@ -167,6 +168,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `pack` | `packed`: the number of files in the archive; `used`: `{item name: count}` |
 | `init` | `created` |
 | `verify` | `intact`, `records` |
+| `unlock` | `methods`: the enrolled methods; `keyring_available` when listing |
 | `restore` | `backups`: a list of `{version, saved, items}`; or `restored`: the item count |
 
 `status` is one of `created`, `updated`, `unchanged`, `skipped`. `stored` says whether the item now exists in the vault.

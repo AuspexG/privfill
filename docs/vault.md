@@ -11,13 +11,20 @@ The vault is a JSON file with mode 600 in a directory with mode 700.
  "privfill_vault": 1,
  "id": "3f0c...  32 hex characters, random, the vault identity",
  "version": 7,
- "unlock": {
-  "method": "passphrase",
-  "kdf": "scrypt", "n": 131072, "r": 8, "p": 1,
-  "salt": "base64, 16 bytes",
-  "nonce": "base64, 12 bytes",
-  "wrapped_key": "base64, the data key encrypted under the unlock key"
- },
+ "unlock": [
+  {
+   "method": "keyring",
+   "nonce": "base64, 12 bytes",
+   "wrapped_key": "base64, the data key encrypted under the secret kept in the desktop keyring"
+  },
+  {
+   "method": "passphrase",
+   "kdf": "scrypt", "n": 131072, "r": 8, "p": 1,
+   "salt": "base64, 16 bytes",
+   "nonce": "base64, 12 bytes",
+   "wrapped_key": "base64, the data key encrypted under the passphrase-derived key"
+  }
+ ],
  "items": [
   {
    "name": "date of birth",
@@ -35,6 +42,7 @@ The vault is a JSON file with mode 600 in a directory with mode 700.
 |---|---|
 | Data key | 32 random bytes, generated when the vault is created. It encrypts every item and never changes. |
 | Item | The value as UTF-8, encrypted with AES-256-GCM under the data key and a fresh random nonce each time it is written. The associated data is the JSON array `["privfill", 1, "item", id, name, type, updated]`. |
+| Keyring secret | 32 random bytes kept in the desktop keyring (Secret Service) under the attributes `application = privfill`, `vault = <id>`. It wraps the data key; the associated data is `["privfill", 1, "key", id, "keyring"]`. |
 | Unlock key | Derived from the passphrase with scrypt (`n` = 2^17, `r` = 8, `p` = 1: about 128 MiB of memory per guess) and a random salt. |
 | Version | Counts up by one on every save. |
 | Seal | An AES-256-GCM tag under the data key over `["privfill", 1, "seal", id, version, unlock entry, [[name, type, updated, nonce, ciphertext], ...]]`. It is checked whenever the vault is unlocked. |
@@ -44,7 +52,7 @@ Three things follow from this layout.
 
 - **Each item stands alone.** A command decrypts only the items it uses. A render that fills one placeholder decrypts one item.
 - **Nothing can be moved.** Because the vault identity, the name, the type and the update time are part of what is authenticated, changing any of them, or putting one item's ciphertext under another item or into another vault, makes decryption fail. The command stops with exit code 1 and names the item.
-- **Unlock methods can change.** Only `unlock` depends on the passphrase. Another method (the desktop keyring is planned) wraps the same data key, so switching methods rewrites `unlock` and leaves every item as it is. A method is a class with `wrap` and `unwrap`; see `Unlock` in `privfill/vault.py`.
+- **Unlock methods can change.** Each entry in `unlock` wraps the same data key, so adding, removing or changing a method rewrites `unlock` (in one atomic save, covered by the seal) and leaves every item as it is. A method is a class with `wrap` and `unwrap`; see `Unlock` in `privfill/vault.py` and `KeyringUnlock` in `privfill/keyring.py`.
 
 - **The list is sealed.** The seal covers every item and the version together, so removing, adding or reordering an entry, or raising the version, makes every command that unlocks the vault stop with exit code 1.
 
@@ -52,9 +60,39 @@ Names, types and update times are stored readable, so `privfill keys` works with
 
 ## Unlocking
 
-The passphrase is typed by the person into a local dialog, never on a command line and never by the assistant. A new vault asks for it twice. A command that reads or writes a value asks once per run; three wrong answers end the command with exit code 5, and closing the dialog ends it with exit code 3. In both cases nothing is changed.
+A vault can be unlocked by the desktop keyring, by a passphrase, or by either.
 
-There is no recovery. If the passphrase is forgotten the values are lost, and the details have to be entered again into a new vault.
+**Keyring (the default).** A new vault uses the desktop keyring (GNOME Keyring, KWallet or another Secret Service) when one can be reached, and the person types nothing. The keyring itself is unlocked by logging in to the desktop. It needs the Python library `secretstorage` (`python-secretstorage` on Arch, `python3-secretstorage` on Debian, Ubuntu and Fedora). When no keyring can be reached, a new vault is protected by a passphrase instead and the command says so in a line starting with `Note:`.
+
+**Passphrase.** Typed by the person into a local dialog, never on a command line and never by the assistant. A new passphrase is asked twice. A command that reads or writes a value asks once per run; three wrong answers end the command with exit code 5, and closing the dialog ends it with exit code 3. In both cases nothing is changed.
+
+**Both.** A command tries the keyring first and the passphrase second. Enrolling both is the way to recover if the keyring entry is lost (a new desktop profile, a reinstalled system): the passphrase still opens the vault, and `unlock add keyring` puts a new entry in the keyring.
+
+```
+privfill.py unlock                     which methods the vault has; whether a keyring is reachable
+privfill.py unlock add keyring         also unlock by the keyring
+privfill.py unlock add passphrase      also unlock by a passphrase (asked twice)
+privfill.py unlock change passphrase   replace the passphrase
+privfill.py unlock remove keyring      stop using the keyring, and delete its entry
+privfill.py unlock remove passphrase   stop using the passphrase
+```
+
+Each of these opens the vault with a method it already has, rewraps the data key and saves once; the last method cannot be removed. The keyring secret and the passphrase are never printed, logged or written outside the keyring and the dialog.
+
+There is no other recovery. If every enrolled method is lost (the passphrase forgotten and the keyring entry gone), the values are lost and the details have to be entered again into a new vault.
+
+**What the keyring trades.** Any program running as you while the desktop session is unlocked can ask the keyring for the secret, and with it decrypt the vault. That includes an assistant's shell commands. The guard denies the obvious ways (`secret-tool`, `secretstorage`, the Secret Service D-Bus name; see `docs/guard.md`), but it judges command text and cannot stop a program that hides what it does. If that is not acceptable, use a passphrase only: `unlock add passphrase`, then `unlock remove keyring`.
+
+### Checking the keyring on a real desktop
+
+The tests use a fake keyring. To check the real one once, with a throwaway vault:
+
+1. `export PRIVFILL_VAULT=/tmp/privfill-check/vault.json`
+2. `python3 privfill.py unlock`: it should say `Desktop keyring: available.` If not, the reason follows.
+3. `python3 privfill.py add nickname` and type a made-up nickname. No passphrase dialog should appear.
+4. Open the desktop's keyring manager (Seahorse, KWalletManager): an entry named `privfill vault unlock key` should be there.
+5. `python3 privfill.py unlock add passphrase` (choose any passphrase), then delete the entry in the keyring manager, then fill a file with `{{nickname}}` through `render`: the passphrase dialog should now appear and the render should work.
+6. `python3 privfill.py unlock remove passphrase` should refuse only if it is the last method; afterwards remove `/tmp/privfill-check`.
 
 ## Durability
 

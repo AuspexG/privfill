@@ -21,7 +21,7 @@
 
 ## 安装
 
-需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`）。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
+需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`），以及用于桌面密钥环解锁的 `secretstorage`（`python-secretstorage`、`python3-secretstorage`）；没有它时改用口令。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
 
 ```
 git clone https://github.com/AuspexG/privfill.git
@@ -81,6 +81,8 @@ privfill.py fill <文件>...             就地填充
 privfill.py pack <压缩包> <文件>...    把文件打包成 zip
 privfill.py verify                     检查操作日志是否被改动
 privfill.py restore [<版本>]           列出保险库的备份，或恢复其中一个
+privfill.py unlock [add|change|remove] [keyring|passphrase]
+                                       查看或更改保险库的解锁方式
 privfill.py protocol                   打印录入协议摘要
 privfill.py guard                      供工具钩子调用：这次调用可以放行吗？
 privfill.py mcp                        作为 MCP 服务提供这些工具（标准输入输出）

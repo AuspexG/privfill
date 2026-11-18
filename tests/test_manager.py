@@ -95,7 +95,7 @@ class TestBackup(ManagerCase):
         for _, _, value in ITEMS:
             if len(value) > 5:
                 self.assertNotIn(value, text)
-        self.assertEqual(json.loads(text)["unlock"]["method"], "passphrase")
+        self.assertEqual(json.loads(text)["unlock"][0]["method"], "passphrase")
         other = VaultStore(os.path.join(self.tmp.name, "new", "vault.json"), unlock("other", "other"))
         added, replaced = Manager(other, lambda: unlock(BACKUP)).import_(self.backup_file(), lambda names: True)
         self.assertEqual((added, replaced), (len(ITEMS), 0))

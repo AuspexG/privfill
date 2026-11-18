@@ -24,6 +24,8 @@ ever contains a value.
                                          (every path may contain placeholders)
   privfill.py verify                     check the activity log was not altered
   privfill.py restore [<version>]        list the vault's backups, or put one back
+  privfill.py unlock [add|change|remove] [keyring|passphrase]
+                                         list or change how the vault is unlocked
   privfill.py guard                      for a tool hook: read a tool call as JSON on
                                          standard input; exit 0 to allow, 2 to deny
 

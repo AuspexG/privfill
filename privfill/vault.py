@@ -79,6 +79,14 @@ class Unlock:
     """One way of protecting the data key. A vault stores what wrap returns and hands it back to unwrap."""
 
     method = ""
+    why_not = ""  # when not available: why, for the person
+
+    def available(self):
+        """Whether this method can be used on this machine now."""
+        return True
+
+    def forget(self, vault_id):
+        """Drop anything kept outside the vault file for it, once the vault no longer uses this method."""
 
     def wrap(self, key, vault_id):
         """The unlock entry (a JSON object with "method") that protects key for this vault."""
@@ -153,13 +161,22 @@ class VaultStore(Store):
     """
 
     def __init__(self, path, unlock, history=False, keep=KEEP_BACKUPS):
+        """unlock is one Unlock method, or a list of them in order of preference: a new vault uses the
+        first one available, and an existing vault is opened with the first enrolled one that works."""
         self.path = path
         self.label = os.path.basename(path)
         self.directory = os.path.dirname(path)
-        self.unlock = unlock
+        self.unlocks = list(unlock) if isinstance(unlock, (list, tuple)) else [unlock]
+        self.notice = None  # something the person should know about how the vault was set up
+        self._holding = False  # whether this object holds the writers' lock
         self.history = history
         self.keep = keep
         self._data_key = None
+
+    @property
+    def unlock(self):
+        """The preferred unlock method."""
+        return self.unlocks[0]
 
     # Where things live.
 
@@ -178,8 +195,14 @@ class VaultStore(Store):
             return False
         vault_id = os.urandom(16).hex()
         key = os.urandom(KEY_BYTES)
+        usable = [u for u in self.unlocks if u.available()]
+        if not usable:
+            raise StoreError("no way to unlock a new vault is available: " + "; ".join(u.why_not for u in self.unlocks))
+        if usable[0] is not self.unlocks[0]:
+            self.notice = (f"{self.unlocks[0].why_not}, so the vault is protected by a {usable[0].method} instead; "
+                           f"`privfill unlock add {self.unlocks[0].method}` switches later")
         vault = {"privfill_vault": FORMAT, "id": vault_id, "version": 1,
-                 "unlock": self.unlock.wrap(key, vault_id), "items": []}
+                 "unlock": [usable[0].wrap(key, vault_id)], "items": []}
         vault["seal"] = self._seal(vault, key)
         os.makedirs(self.directory or ".", mode=0o700, exist_ok=True)
         with self._locked():
@@ -278,7 +301,7 @@ class VaultStore(Store):
             if current and current.get("items") is not None and "id" in current and current["id"] != backup["id"]:
                 raise Damaged("that backup belongs to another vault")
             if self._data_key is None:
-                self._data_key = self.unlock.unwrap(backup["unlock"], backup["id"])
+                self._data_key = self._unwrap(backup)
             self._check_seal(backup)
             newest = max(self._seen(backup["id"]), current.get("version", 0) if current else 0)
             backup["version"] = newest  # _save counts it up
@@ -293,19 +316,81 @@ class VaultStore(Store):
         if self._data_key is None:
             if "unlock" not in vault:  # no vault yet: nothing to unlock
                 return vault
-            self._data_key = self.unlock.unwrap(vault["unlock"], vault["id"])
+            self._data_key = self._unwrap(vault)
         self._check_seal(vault)
         return vault
+
+    # Unlock methods.
+
+    @staticmethod
+    def _unlock_entries(vault):
+        """The vault's unlock entries; a vault from before several methods existed has one, unlisted."""
+        return vault["unlock"] if isinstance(vault["unlock"], list) else [vault["unlock"]]
+
+    def _unwrap(self, vault):
+        """The data key, from the first enrolled method that works here. Cancelling stops at once."""
+        entries = {e.get("method"): e for e in self._unlock_entries(vault)}
+        failure = None
+        for u in self.unlocks:
+            if u.method not in entries:
+                continue
+            if not u.available():
+                failure = failure or Locked(f"the vault was not unlocked: {u.why_not}")
+                continue
+            try:
+                return u.unwrap(entries[u.method], vault["id"])
+            except Locked as e:
+                if getattr(u, "method", "") == "passphrase":
+                    raise
+                failure = e  # e.g. the keyring lost its entry: another enrolled method may still work
+        raise failure or Damaged("the vault uses an unlock method this version does not support")
+
+    def methods(self):
+        """The unlock methods enrolled in the vault, in stored order. Needs no unlock."""
+        vault = self._load()
+        return [e.get("method") for e in self._unlock_entries(vault)] if "unlock" in vault else []
+
+    def enroll(self, unlock):
+        """Add this unlock method to the vault, or replace its entry (a new passphrase). Items are not touched."""
+        if not unlock.available():
+            raise StoreError(f"cannot use the {unlock.method}: {unlock.why_not}")
+        self._opened()  # unlock with a method already enrolled first
+        with self._locked():
+            vault = self._opened()
+            entry = unlock.wrap(self._data_key, vault["id"])
+            vault["unlock"] = [e for e in self._unlock_entries(vault) if e.get("method") != unlock.method] + [entry]
+            self._save(vault)
+
+    def withdraw(self, method):
+        """Remove an unlock method from the vault. The last one cannot be removed."""
+        self._opened()
+        with self._locked():
+            vault = self._opened()
+            kept = [e for e in self._unlock_entries(vault) if e.get("method") != method]
+            if len(kept) == len(self._unlock_entries(vault)):
+                raise StoreError(f"the vault has no {method} to remove")
+            if not kept:
+                raise StoreError("that is the vault's only way to unlock; add another one first")
+            vault["unlock"] = kept
+            self._save(vault)
+        for u in self.unlocks:
+            if u.method == method:
+                u.forget(vault["id"])
 
     @contextlib.contextmanager
     def _locked(self):
         """Hold the writers' lock on the vault. Readers need none: the file is only ever replaced whole."""
         os.makedirs(self.directory or ".", mode=0o700, exist_ok=True)
+        if self._holding:  # flock is not re-entrant across file descriptors
+            yield
+            return
         fd = os.open(self.path + ".lock", os.O_WRONLY | os.O_CREAT, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
+            self._holding = True
             yield
         finally:
+            self._holding = False
             os.close(fd)
 
     @staticmethod
@@ -349,7 +434,8 @@ class VaultStore(Store):
             names = [e["name"] for e in vault["items"]]
             version = vault.setdefault("version", 0)
             ok = vault["privfill_vault"] == FORMAT and isinstance(vault["id"], str) and text \
-                and isinstance(vault["unlock"], dict) and len(set(names)) == len(names) \
+                and isinstance(vault["unlock"], (dict, list)) and len(set(names)) == len(names) \
+                and all(isinstance(e, dict) for e in self._unlock_entries(vault)) and self._unlock_entries(vault) \
                 and type(version) is int and version >= 0
         except (ValueError, KeyError, TypeError, AttributeError):
             ok = False
@@ -357,7 +443,7 @@ class VaultStore(Store):
             raise Damaged("the vault file cannot be read") from None
         if not ok:
             raise Damaged(NOT_A_VAULT)
-        if vault["unlock"].get("method") != self.unlock.method:
+        if not {e.get("method") for e in self._unlock_entries(vault)} & {u.method for u in self.unlocks}:
             raise Damaged("the vault uses an unlock method this version does not support")
         return vault
 
@@ -366,6 +452,10 @@ class VaultStore(Store):
         if not os.path.exists(self.path):
             return {"items": []}
         vault = self._parse(self.path)
+        if self.history and vault["version"] < self._seen(vault["id"]) and not self._holding:
+            # A writer may have saved between the two reads: look again while no writer can.
+            with self._locked():
+                vault = self._parse(self.path)
         if self.history and vault["version"] < self._seen(vault["id"]):
             raise Damaged("the vault is older than the newest one saved on this machine; it may have been "
                           "replaced by an older copy. `privfill restore` lists the backups")

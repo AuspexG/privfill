@@ -21,7 +21,7 @@ The assistant sees item names, counts and exit codes. It does not see values.
 
 ## Install
 
-Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora). The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
+Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora), and `secretstorage` (`python-secretstorage`, `python3-secretstorage`) for unlocking by the desktop keyring; without it a passphrase is used. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
 
 ```
 git clone https://github.com/AuspexG/privfill.git
@@ -83,6 +83,8 @@ privfill.py fill <file>...             fill files in place
 privfill.py pack <archive> <file>...   bundle files into a zip archive
 privfill.py verify                     check the activity log
 privfill.py restore [<version>]        list the vault's backups, or put one back
+privfill.py unlock [add|change|remove] [keyring|passphrase]
+                                       list or change how the vault is unlocked
 privfill.py protocol                   print the entry protocol summary
 privfill.py guard                      answer a tool hook: may this call go ahead?
 privfill.py mcp                        serve the tools as an MCP server (stdin/stdout)

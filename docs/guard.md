@@ -45,6 +45,7 @@ The reason is one of a fixed set of sentences. It names the kind of thing the ca
 | it would list or search a place that holds a filled output or the privfill data directory | a listing, search or recursive command would cover one |
 | a privfill command may not contain a command substitution | `$(...)` inside the arguments of a privfill command |
 | the hook payload was not understood | the input is not the format below, or the guard itself failed |
+| it would read the desktop keyring that may hold the key to the privfill vault | a shell command that names a keyring tool or interface: `secret-tool`, `kwallet-query`, `secretstorage`, `org.freedesktop.secrets`, the `keyring` package |
 | the output registry could not be read | `outputs.json` is damaged; every call is denied until it is repaired or removed |
 
 Calls to the program's own MCP tools (`mcp__<server>__privfill_keys`, `_form`, `_render`, `_pack`, under whatever server name they were registered) are allowed like the program's own commands, so `privfill_pack` may bundle a filled output. Any other MCP tool is judged by its inputs like a file tool.
@@ -116,3 +117,4 @@ The guard judges what a call says. It is not a sandbox, and it does not make the
 - A search from a directory that holds an output is denied unless a filter excludes the output. Keeping outputs outside the project, or at least in their own directory as rule 5 asks, keeps this rare.
 - The copy check for the program's own commands compares the launcher only, not the package beside it.
 - Tools whose inputs are not named as paths or commands pass unchecked.
+- The keyring rule matches text. A program that reads the desktop keyring on its own, or a script written to a file first and then run, is not seen. When the vault is unlocked by the keyring, anything running as you can ask the keyring for the vault's key; enroll only a passphrase (`privfill unlock add passphrase`, then `privfill unlock remove keyring`) if that is not acceptable.

@@ -43,6 +43,7 @@ KEYRING_TEXT = re.compile(
 # Words in the key of a tool input (file_path, notebookPath, paths) that say its value is a path, or a shell command.
 PATH_KEYS = {"path", "file", "filename", "filepath", "dir", "directory", "directories", "folder", "uri", "url", "source", "glob", "notebook"}
 SHELL_KEYS = {"command", "cmd", "script"}
+SUBSTITUTION_TEXT = re.compile(r"\$\(|`|[<>]\(")  # command and process substitution
 # This program's own MCP tools (privfill/mcp_server.py), under whatever name the server was registered.
 OWN_MCP_TOOL = re.compile(r"mcp__.+__privfill_(keys|form|render|pack)")
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
@@ -155,6 +156,7 @@ class Guard:
         if not isinstance(cwd, str) or not os.path.isabs(cwd):
             cwd = os.getcwd()
         self.variables = {"PWD": cwd}
+        self.substitution = False
         if OWN_MCP_TOOL.fullmatch(tool):  # the program's own tools, like its own commands in a shell
             return None
         try:
@@ -219,6 +221,9 @@ class Guard:
             return PAYLOAD
         if KEYRING_TEXT.search(command):
             return KEYRING
+        # Any substitution anywhere in the text: the lexer below splits $( and turns backticks into
+        # separators, so it would no longer be seen next to the program's arguments.
+        self.substitution = self.substitution or bool(SUBSTITUTION_TEXT.search(command))
         text = command.replace("`", " ; ").replace("\n", " ; ")
         try:
             lexer = shlex.shlex(text, posix=True, punctuation_chars=True)
@@ -248,7 +253,7 @@ class Guard:
             return None, cwd
         name = os.path.basename(words[0])
         if self.own(words, cwd):
-            return (SUBSTITUTION if any("$(" in w or "`" in w for w in words) else None), cwd
+            return (SUBSTITUTION if self.substitution or any("$(" in w or "`" in w for w in words) else None), cwd
         operands = [w for w in words[1:] if not w.startswith("-")]
         if name in ("cd", "pushd"):
             cwd = resolve(self.variable(operands[0]) if operands else "~", cwd)

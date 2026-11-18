@@ -100,5 +100,6 @@ cat <<EOF
 
 Next:
   1. Give your assistant the rules: see AGENT_GUIDE.md.
-  2. Claude Code: add the permission rules from docs/claude-code.md.
+  2. Claude Code: ./install.sh --claude puts the guard into your settings (docs/claude-code.md);
+     tools/managed-settings-wizard.sh moves it where only root can change it.
 EOF

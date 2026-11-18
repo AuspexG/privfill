@@ -59,6 +59,10 @@ def cmd_form(spec, store):
     types = {f["name"]: f["type"] for f in spec["fields"]}
     changed = {k: v for k, v in out.items() if data.get(k) != v}
     updated = {k: store.write(k, v, types[k]) for k, v in changed.items()}
+    if hasattr(store, "raise_level"):  # the protocol may raise an item's sensitivity, never lower it
+        for f in spec["fields"]:
+            if "sensitivity" in f and f["name"] in (data.keys() | changed.keys()):
+                store.raise_level(f["name"], f["sensitivity"])
     now = read_items(store, names)
     rc, items = 0, []
     for f in spec["fields"]:
@@ -298,6 +302,34 @@ def cmd_precommit(args):
     return 0
 
 
+def confirm_use(command, store, masters, output=None, files=(), texts=()):
+    """None if the command may go on; else the exit code of a decline. Asks the person, in a local
+    window, before an item of high sensitivity is used, unless a live grant covers the same masters."""
+    from .sensitivity import DECLINED, Grants, ask, grant_key, items_used, levels
+
+    level_of = levels(store)
+    used = items_used(store, files, texts)
+    high = sorted(n for n in used if level_of.get(n) == "high")
+    if not high:
+        return None
+    key = grant_key(command, masters, high)
+    grants = Grants(store)
+    if grants.live(key):
+        print(f"Using {', '.join(high)} (high sensitivity) under the person's earlier permission for this master.")
+        return None
+    answer = ask(command, masters, output, used, level_of)
+    if answer == "no":
+        EVENTS.append(("confirm", {n: "declined" for n in high}, None))
+        RESULT.update(declined=high)
+        print(f"Declined by the person: {', '.join(high)} (high sensitivity) may not be used here; nothing was written. "
+              "Do not try again unless the person asks.")
+        return DECLINED
+    if answer == "remember":
+        grants.add(key)
+    EVENTS.append(("confirm", {n: "granted" for n in high}, None))
+    return None
+
+
 def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
@@ -385,6 +417,11 @@ def run_cmd(argv, store, registry=None):
         if len(argv) < 3:
             print("Usage: fill <file>...")
             return 1
+        files = argv[2:]
+        declined = confirm_use("fill", store, [f for f in files if os.path.isfile(f)],
+                               files=[f for f in files if os.path.isfile(f)])
+        if declined:
+            return declined
         rc = 0
         for i, path in enumerate(argv[2:], 1):  # file names may hold personal details: refer to files by index
             try:
@@ -424,6 +461,10 @@ def run_cmd(argv, store, registry=None):
         if os.path.abspath(dst) == os.path.abspath(src):
             print("Failed: the output path is the master itself; nothing was written.")
             return 1
+        if os.path.isfile(src):
+            declined = confirm_use("render", store, [src], output=dst, files=[src], texts=[argv[3]])
+            if declined:
+                return declined
         try:
             before = digest(src)
             shutil.copy2(src, dst)
@@ -457,6 +498,9 @@ def run_cmd(argv, store, registry=None):
         except Missing as e:
             print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
             return 2
+        declined = confirm_use("pack", store, [f for f in files if os.path.isfile(f)], output=dst, texts=argv[2:])
+        if declined:
+            return declined
         try:
             pack(dst, files)
             if not record_output(registry, dst):

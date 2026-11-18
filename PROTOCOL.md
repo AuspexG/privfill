@@ -52,6 +52,7 @@ Field keys:
 | `choices` | for `choice` | array of strings | The options. Not allowed on other types. |
 | `pattern` | no | string | A regular expression the normalized value must fully match. |
 | `pattern_hint` | no | string | Shown to the person when `pattern` does not match. |
+| `sensitivity` | no | string | `low`, `medium` or `high` (section 2.4). Raises the item's stored level; never lowers it. |
 
 **The protocol holds questions, never answers.** Any key not listed above, including `value`, `default` and `answer`, makes the program reject the whole protocol with exit code 4.
 
@@ -78,6 +79,17 @@ Date parsing reads year, month, day in that order. All types except `text` first
 - If a check fails, the form stays open and states the reason under the field.
 - If the person cancels or closes the window, nothing is saved and the exit code is 3.
 - The form's own text is in English or Chinese, following the system locale or `PRIVFILL_LANG`. `title`, `note`, `label`, `hint` and `section` are shown as the caller wrote them.
+
+### 2.4 Sensitivity
+
+Every item has a level. Without `sensitivity` in the protocol it follows the type: `id_card` is `high`; `phone`, `date` and `email` are `medium`; the rest are `low`. The protocol can raise a stored level but never lower it; a lower level is ignored, so the caller cannot make an item less protected. The level is stored in the vault and covered by its seal.
+
+| Level | Effect |
+|---|---|
+| `low`, `medium` | Used without asking. |
+| `high` | `render`, `fill` and `pack` find, before reading any value, which items they would use. If one is `high`, the person is asked in a local window that names the masters, the output and every item used: **Allow once**, **Allow for 10 minutes**, or **Don't allow**. |
+
+"Allow for 10 minutes" covers the same command with the same master content and the same high items; a changed master asks again. The grant is stored beside the vault with a tag made with the vault's data key, so it cannot be written without unlocking the vault. "Don't allow" ends the command with exit code 7, and nothing is written. The answer can only be given in the window: no argument, environment variable or tool input answers it for a vault the caller cannot unlock itself (the test hook `PRIVFILL_CONFIRM_TEST` refuses any vault inside `~/.privfill` and turns the keyring off).
 
 ## 3. Placeholders
 
@@ -149,6 +161,7 @@ Every file that `render`, `fill` or `pack` fills or writes is recorded, by path 
 | 4 | The entry protocol is invalid |
 | 5 | The vault was not unlocked: the person entered a wrong passphrase, or the keyring holds no key for it |
 | 6 | `audit` found at least one stored value |
+| 7 | The person declined the use of a high-sensitivity item; nothing was written. Do not retry unless the person asks. |
 
 Every command that reads or writes a value (`form`, `add`, `render`, `fill`, `pack`) unlocks the vault: through the desktop keyring if the vault has that method and the keyring holds its entry, otherwise by asking the person for the vault passphrase in a local dialog; `keys` does not unlock. The caller never supplies the passphrase or the keyring secret. A line starting with `Note:` tells the person something about how the vault was set up (for example that no keyring was reachable). If the person closes the dialog the exit code is 3; after exit code 5, ask the person before trying again. A vault that is unreadable or was altered, and a missing encryption library, give exit code 1 with a message that says which.
 
@@ -174,6 +187,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `init` | `created` |
 | `verify` | `intact`, `records` |
 | `unlock` | `methods`: the enrolled methods; `keyring_available` when listing |
+| `render`, `fill`, `pack` after a decline | `declined`: the high-sensitivity item names |
 | `audit` | `found`: `{item name: count}`; `locations`: a list of `{index, items}`; `scanned`, `skipped` (counts); `too_short` (item names) |
 | `precommit` | `status`: `installed`, `updated`, `chained`, `removed`, `restored` or `absent` |
 | `migrate` | `found`; then `total`, `added`, `present` (counts), `conflicts` (item names), `mismatched` (count), `copies` (paths), `deleted` |

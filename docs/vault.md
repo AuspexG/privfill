@@ -30,6 +30,7 @@ The vault is a JSON file with mode 600 in a directory with mode 700.
    "name": "date of birth",
    "type": "date",
    "updated": "2026-01-02T03:04:05Z",
+   "sensitivity": "high   (optional; absent means the default for the type, see PROTOCOL.md 2.4)",
    "nonce": "base64, 12 bytes",
    "ciphertext": "base64, the value and its authentication tag"
   }
@@ -45,7 +46,7 @@ The vault is a JSON file with mode 600 in a directory with mode 700.
 | Keyring secret | 32 random bytes kept in the desktop keyring (Secret Service) under the attributes `application = privfill`, `vault = <id>`. It wraps the data key; the associated data is `["privfill", 1, "key", id, "keyring"]`. |
 | Unlock key | Derived from the passphrase with scrypt (`n` = 2^17, `r` = 8, `p` = 1: about 128 MiB of memory per guess) and a random salt. |
 | Version | Counts up by one on every save. |
-| Seal | An AES-256-GCM tag under the data key over `["privfill", 1, "seal", id, version, unlock entry, [[name, type, updated, nonce, ciphertext], ...]]`. It is checked whenever the vault is unlocked. |
+| Seal | An AES-256-GCM tag under the data key over `["privfill", 1, "seal", id, version, unlock entry, [[name, type, updated, nonce, ciphertext(, sensitivity)], ...]]`, so a level cannot be lowered by editing the file. It is checked whenever the vault is unlocked. |
 | Wrapped key | The data key encrypted with AES-256-GCM under the unlock key. The associated data is `["privfill", 1, "key", id, method, kdf, n, r, p, salt]`. |
 
 Three things follow from this layout.

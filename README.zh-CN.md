@@ -140,6 +140,7 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 | `keyring.py` | 通过桌面密钥环（Secret Service）解锁 |
 | `migrate.py` | 把旧版本的明文数据文件移入保险库 |
 | `audit.py` | 在文件中查找已存的值及其各种写法（见 [docs/audit.md](docs/audit.md)） |
+| `sensitivity.py` | 敏感度分级，以及使用高敏感信息前在本机窗口里向你确认 |
 | `precommit.py` | git 提交前检查 |
 | `normalize.py` | 各类型答案的整理规则 |
 | `protocol.py` | 录入协议的校验和摘要 |

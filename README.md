@@ -142,6 +142,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `keyring.py` | unlocking by the desktop keyring (Secret Service) |
 | `migrate.py` | moving an earlier version's plain-text data file into the vault |
 | `audit.py` | finding stored values in files, in their written variants ([docs/audit.md](docs/audit.md)) |
+| `sensitivity.py` | sensitivity levels, and the person's local confirmation before a high one is used |
 | `precommit.py` | the git pre-commit check |
 | `normalize.py` | the rules that tidy each type of answer |
 | `protocol.py` | validation of the entry protocol, and its summary |

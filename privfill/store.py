@@ -96,7 +96,10 @@ def default_store():
     from .keyring import KEYRING_TEST, KeyringUnlock, default_service
     from .vault import TEST_COST, PassphraseUnlock, VaultStore
 
-    testing = any(os.environ.get(k) is not None for k in (PASSPHRASE_TEST, KEYRING_TEST, "PRIVFILL_FORM_TEST"))
+    # Under any test hook the real keyring is never used, so a hook cannot stand in for the person
+    # on a vault the keyring would open (for example a copy of theirs placed outside ~/.privfill).
+    testing = any(os.environ.get(k) is not None
+                  for k in (PASSPHRASE_TEST, KEYRING_TEST, "PRIVFILL_FORM_TEST", "PRIVFILL_CONFIRM_TEST"))
     # A passphrase taken from the environment protects nothing, so such a vault skips the slow derivation.
     cost = {"cost": TEST_COST} if os.environ.get(PASSPHRASE_TEST) is not None else {}
     return VaultStore(vault_path(), [KeyringUnlock(default_service(testing)), PassphraseUnlock(ask_passphrase, **cost)],

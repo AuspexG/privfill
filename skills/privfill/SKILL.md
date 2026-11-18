@@ -93,6 +93,8 @@ The program reports each item's status (stored, updated, unchanged, left empty) 
 | 3 | The user cancelled the form |
 | 4 | The protocol is invalid |
 | 5 | The user entered a wrong vault passphrase. Ask them before trying again. |
+| 6 | `audit` found a stored value (names and counts are in the output; never try to find out the value or path yourself). |
+| 7 | The user declined, in a local window, the use of a high-sensitivity item. Nothing was written. Do not retry unless they ask. |
 
 Commands that use a value unlock the vault through the desktop keyring when it has the key, and otherwise make the program ask the user for their vault passphrase in a local window. You never see either, never ask for them and never supply them; never query the keyring yourself (`secret-tool`, `secretstorage` and the like). If the user closes the passphrase window the exit code is 3. Pass on any `Note:` line to the user. To change how the vault is unlocked, the user runs `privfill.py unlock` (see `docs/vault.md`); suggest it, do not choose for them.
 

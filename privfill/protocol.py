@@ -7,7 +7,7 @@ from .normalize import NORMS
 from .texts import HEADER_NAMES
 
 PROTOCOL_VERSION = 1
-FIELD_KEYS = {"name", "label", "hint", "type", "required", "choices", "pattern", "pattern_hint", "section"}
+FIELD_KEYS = {"name", "label", "hint", "type", "required", "choices", "pattern", "pattern_hint", "section", "sensitivity"}
 SPEC_KEYS = {"protocol", "title", "note", "fields"}
 
 PROTOCOL = """privfill entry protocol v1 (summary; the full specification is PROTOCOL.md)
@@ -26,7 +26,9 @@ PROTOCOL = """privfill entry protocol v1 (summary; the full specification is PRO
       "section":  "optional: start a new group before this field; the value is the group title",
       "choices":  ["required for type choice"],
       "pattern":  "optional: regex the normalized value must fully match",
-      "pattern_hint": "optional: message shown to the person when pattern does not match"
+      "pattern_hint": "optional: message shown to the person when pattern does not match",
+      "sensitivity": "optional: low medium high; default by type (id_card high; phone, date, email medium; else low).
+                      high makes render/fill/pack ask the person first. Raises a stored level, never lowers it"
     }
   ]
 }
@@ -45,6 +47,8 @@ Rules:
 - Run `keys` first to avoid duplicate or near-synonym names; put related items in one form.
 - Items that already exist are pre-filled on the person's screen; changed = updated, untouched = kept.
 - Output lists only item names, statuses, types and placeholders - never values.
+- A high-sensitivity item (id_card by default) makes render/fill/pack ask the person in a local window;
+  a refusal is exit code 7: tell the person, do not retry.
 - Formats when filling: {{birthday|YYYY/MM/DD}} {{birthday|YYYYMMDD}} {{item|last4}} {{item|first6}}
 """
 
@@ -101,6 +105,8 @@ def parse_spec(text):
                 return None, f"field '{n}' is a choice and needs a non-empty array of strings in 'choices'"
         elif "choices" in f:
             return None, f"field '{n}' is not a choice and must not have 'choices'"
+        if "sensitivity" in f and f["sensitivity"] not in ("low", "medium", "high"):
+            return None, f"field '{n}': 'sensitivity' must be low, medium or high"
         if f.get("pattern"):
             try:
                 re.compile(f["pattern"])

@@ -244,6 +244,9 @@ class VaultStore(Store):
         with self._locked():
             vault = self._opened()  # again, under the lock: another process may have saved meanwhile
             entry = {"name": name, "type": type, "updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+            old = self._entry(vault, name)
+            if old is not None and "sensitivity" in old:  # a new value keeps the level the item had
+                entry["sensitivity"] = old["sensitivity"]
             nonce = os.urandom(NONCE_BYTES)
             entry.update(nonce=b64(nonce), ciphertext=b64(
                 AESGCM(self._data_key).encrypt(nonce, value.encode("utf8"), self._bound(vault, entry))))
@@ -254,6 +257,44 @@ class VaultStore(Store):
                 vault["items"][vault["items"].index(old)] = entry
             self._save(vault)
         return old is not None
+
+    def levels(self):
+        """{item name: sensitivity level}: the stored level, or the default for the item's type. Needs no unlock."""
+        from .sensitivity import default_level
+
+        return {e["name"]: e.get("sensitivity") or default_level(e["type"]) for e in self._load()["items"]}
+
+    def raise_level(self, name, level):
+        """Raise an item's sensitivity to level. A level is never lowered this way. Returns True if it changed."""
+        from .sensitivity import LEVELS, higher
+
+        if level not in LEVELS or name not in self.levels() or higher(self.levels()[name], level) != level \
+                or self.levels()[name] == level:
+            return False
+        self._opened()
+        with self._locked():
+            vault = self._opened()
+            entry = self._entry(vault, name)
+            entry["sensitivity"] = level
+            self._save(vault)
+        return True
+
+    def tag(self, *parts):
+        """A tag over parts made with the data key: proof that whoever wrote it could unlock the vault."""
+        AESGCM, _, _ = crypto()
+        vault = self._opened()
+        nonce = os.urandom(NONCE_BYTES)
+        return b64(nonce) + ":" + b64(AESGCM(self._data_key).encrypt(nonce, b"", bound("tag", vault["id"], *parts)))
+
+    def check_tag(self, tag, *parts):
+        AESGCM, _, InvalidTag = crypto()
+        try:
+            nonce, mac = tag.split(":")
+            vault = self._opened()
+            AESGCM(self._data_key).decrypt(unb64(nonce, NONCE_BYTES), unb64(mac), bound("tag", vault["id"], *parts))
+            return True
+        except (InvalidTag, ValueError, AttributeError, Damaged):
+            return False
 
     def delete(self, name):
         if self._entry(self._load(), name) is None:
@@ -404,7 +445,8 @@ class VaultStore(Store):
     @staticmethod
     def _manifest(vault):
         """What the seal covers: the identity, the version, the unlock entry and every item as stored."""
-        items = [[e[k] for k in ("name", "type", "updated", "nonce", "ciphertext")] for e in vault["items"]]
+        items = [[e[k] for k in ("name", "type", "updated", "nonce", "ciphertext")]
+                 + ([e["sensitivity"]] if "sensitivity" in e else []) for e in vault["items"]]
         unlock = json.dumps(vault["unlock"], sort_keys=True, ensure_ascii=True)
         return bound("seal", vault["id"], vault["version"], unlock, items)
 

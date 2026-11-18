@@ -82,6 +82,7 @@ class World:
         case.assertEqual(rc, 0, "seeding failed")
         self.write("master.md", "{{name}} / {{birthday|YYYY.MM.DD}} / {{phone|last4}}\n")
         self.write("no-such-item.md", "{{name}} {{shoe size}}\n")
+        self.write("id-master.md", "{{name}} {{id number}} {{id number|last4}}\n")  # high sensitivity
         self.write("bad-format.md", "{{name|YYYY-MM-DD}} {{birthday|sideways}}\n")
         # An output that is filled a second time: its braces now hold values, not item names.
         self.write("filled-twice.md", "\\textbf{{Qwyzbek Vorplux}} {{ 99955509264 }}\n")
@@ -297,6 +298,10 @@ SCENARIOS = {
         *with_broken_store("add", "name", answers={"name": REFUSED["name"]}),
     ],
     "render": [
+        scenario("render", "id-master.md", "out/{{id number}}.md", env=CONFIRM_NO),
+        scenario("render", "id-master.md", "out/{{name}}.md", env=CONFIRM_YES),
+        scenario("render", "id-master.md", "out/a.md", env={"PRIVFILL_CONFIRM_TEST": "remember"}),
+        scenario("render", "id-master.md", "out/{{id number}}.md", env=dict(CONFIRM_NO, PRIVFILL_CONFIRM_SHOT="c.png")),
         scenario("render"),
         scenario("render", "master.md"),
         scenario("render", "master.md", "out/a.md", "extra"),
@@ -312,6 +317,8 @@ SCENARIOS = {
         *with_broken_store("render", "master.md", "out/{{name}}.md"),
     ],
     "fill": [
+        scenario("fill", "id-master.md", env=CONFIRM_NO),
+        scenario("fill", "id-master.md", "master.md", env=CONFIRM_YES),
         scenario("fill"),
         *[scenario("fill", f) for f in FILES],
         scenario("fill", *FILES),
@@ -399,7 +406,10 @@ SCENARIOS = {
         *(scenario("verify", before=b) for b in LOG_BREAKS),
         *with_broken_store("verify"),
     ],
+    # The person declines, allows, or the window is drawn: with values in the paths and the master.
     "pack": [
+        scenario("pack", "out/{{id number|last4}}.zip", "master.md", env=CONFIRM_NO),
+        scenario("pack", "out/{{id number}}.zip", "{{name}}.md", env=CONFIRM_YES),
         scenario("pack"),
         scenario("pack", "out/a.zip"),
         scenario("pack", "out/{{name}}.zip", "master.md"),
@@ -435,7 +445,7 @@ class TestNoValueEscapes(unittest.TestCase):
                 # Say which stream leaked, never what: a failing test's report is output too.
                 self.assertFalse(leaked, f"{len(leaked)} value fragment(s) in {name} of {where}")
             self.assertNotIn("Traceback", err, f"an exception escaped from {where}")
-            self.assertIn(rc, (0, 1, 2, 3, 4, 5, 6), where)
+            self.assertIn(rc, (0, 1, 2, 3, 4, 5, 6, 7), where)
             # guard answers through its exit code alone and mcp speaks its own protocol: both ignore --json
             if prefix and sc["args"][:1] not in (["--json"], ["guard"], ["mcp"]):
                 try:

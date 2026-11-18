@@ -110,8 +110,8 @@ class TestHandshakeAndSchemas(McpCase):
         self.assertEqual(set(form["properties"]), {"protocol", "title", "note", "fields"})
         self.assertEqual(form["required"], ["fields"])
         field = form["properties"]["fields"]["items"]
-        self.assertEqual(set(field["properties"]),
-                         {"name", "label", "hint", "type", "required", "section", "choices", "pattern", "pattern_hint"})
+        from privfill.protocol import FIELD_KEYS
+        self.assertEqual(set(field["properties"]), FIELD_KEYS)  # the schema is the protocol, key for key
         self.assertEqual(field["required"], ["name"])
         self.assertIs(field["additionalProperties"], False)
         self.assertEqual(field["properties"]["type"]["enum"],

@@ -19,7 +19,8 @@ SUPPORTED_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 EXIT_CODES = ("Exit codes, given as `code` in the result: 0 ok, 1 usage or runtime error, 2 a placeholder names an "
               "item that does not exist or a format does not apply, 3 the person cancelled the form, "
               "4 the entry protocol is invalid, 5 the vault was not unlocked (wrong passphrase; ask the person "
-              "before trying again). `isError` is true whenever `code` is not 0.")
+              "before trying again), 7 the person declined the use of a high-sensitivity item (do not retry "
+              "unasked). `isError` is true whenever `code` is not 0.")
 PATH_NOTE = "May contain placeholders such as {{name}}, which are filled locally."
 
 FIELD_SCHEMA = {
@@ -41,6 +42,10 @@ FIELD_SCHEMA = {
                     "description": "The options. Required for type choice, not allowed for other types."},
         "pattern": {"type": "string", "description": "A regular expression the normalized value must fully match."},
         "pattern_hint": {"type": "string", "description": "Shown to the person when pattern does not match."},
+        "sensitivity": {"type": "string", "enum": ["low", "medium", "high"],
+                        "description": "How sensitive the item is. Default by type: id_card high; phone, date and "
+                                       "email medium; others low. Using a high item in render or pack makes the "
+                                       "person confirm in a local window. Raises a stored level, never lowers it."},
     },
 }
 

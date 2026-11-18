@@ -33,7 +33,7 @@ PAYLOAD = "the hook payload was not understood"
 REGISTRY = "the output registry could not be read"
 
 # Words in the key of a tool input (file_path, notebookPath, paths) that say its value is a path, or a shell command.
-PATH_KEYS = {"path", "file", "filename", "filepath", "dir", "directory", "directories", "folder", "uri", "glob", "notebook"}
+PATH_KEYS = {"path", "file", "filename", "filepath", "dir", "directory", "directories", "folder", "uri", "url", "source", "glob", "notebook"}
 SHELL_KEYS = {"command", "cmd", "script"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 PREFIXES = {"sudo", "env", "command", "exec", "nohup", "time", "xargs", "eval",
@@ -44,7 +44,7 @@ SWEEP_FLAGS = {"grep": "rR", "egrep": "rR", "fgrep": "rR", "zgrep": "rR", "ls": 
 LISTERS = {"ls", "dir"}  # with no operand, these act on the working directory
 MAKERS = {"mkdir"}  # naming a directory to these shows nothing of what it holds
 OPERATOR = re.compile(r"[();<>|&]+")
-SPLIT = re.compile(r"[\s'\"()=,;:<>|&`]+")
+SPLIT = re.compile(r"[\s'\"\\()=,;:<>|&`]+")
 MAX_MATCHES = 5000  # paths looked at per shell wildcard
 
 
@@ -144,24 +144,34 @@ class Guard:
             return PAYLOAD
         if not isinstance(cwd, str) or not os.path.isabs(cwd):
             cwd = os.getcwd()
-        self.variables = {}
-        if tool == "Bash":
-            return self.shell(call.get("command"), cwd)
-        if tool == "Glob":
-            return self.glob(call, cwd)
-        if tool == "Grep":
-            return self.grep(call, cwd)
-        return self.other(call, cwd)
+        self.variables = {"PWD": cwd}
+        try:
+            if tool == "Bash":
+                return self.shell(call.get("command"), cwd)
+            if tool == "Glob":
+                return self.glob(call, cwd)
+            if tool == "Grep":
+                return self.grep(call, cwd)
+            return self.other(call, cwd)
+        except ValueError:  # a path with a NUL character
+            return PAYLOAD
 
     def glob(self, call, cwd):
         pattern, root = call.get("pattern"), call.get("path")
         if not isinstance(pattern, str) or not isinstance(root, (str, type(None))):
             return PAYLOAD
         root = resolve(root or ".", cwd)
-        if os.path.isabs(os.path.expanduser(pattern)):  # the pattern carries its own root
-            pattern, root = os.path.relpath(os.path.realpath(os.path.expanduser(pattern)), "/"), "/"
-        full = re.compile(glob_regex(os.path.normpath(pattern)))
-        return self.file(root) or self.directory(root, True, full.fullmatch)
+        pattern = os.path.normpath(os.path.join(root, os.path.expanduser(pattern)))  # ".." may climb out of root
+        fixed = []  # the leading directories of the pattern that have no wildcard: where the search really starts
+        for part in pattern.split(os.sep)[1:]:
+            if re.search(r"[*?\[{]", part):
+                break
+            fixed.append(part)
+        start = os.path.realpath(os.sep + os.sep.join(fixed))
+        if not os.path.isdir(start):  # the pattern names a file, or nothing
+            return self.file(start)
+        full = re.compile(glob_regex(os.path.relpath(pattern, os.sep + os.sep.join(fixed))) if len(fixed) < len(pattern.split(os.sep)) - 1 else "")
+        return self.file(start) or self.directory(start, True, full.fullmatch)
 
     def grep(self, call, cwd):
         root, only = call.get("path"), call.get("glob")
@@ -224,7 +234,7 @@ class Guard:
             return None, cwd
         name = os.path.basename(words[0])
         if self.own(words, cwd):
-            return (SUBSTITUTION if any("$(" in w for w in words) else None), cwd
+            return (SUBSTITUTION if any("$(" in w or "`" in w for w in words) else None), cwd
         operands = [w for w in words[1:] if not w.startswith("-")]
         if name in ("cd", "pushd"):
             cwd = resolve(self.variable(operands[0]) if operands else "~", cwd)

@@ -126,6 +126,10 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill pack <archive> <file>...` | Bundle the files into a zip archive at the archive path, each under its base name. Every path may contain placeholders, so outputs can be named without knowing a value. The files are only read. The archive appears complete or not at all; an archive already at that path is replaced, and a new one is created with mode 600. Directories, and two files with the same base name, are refused with exit code 1. |
 | `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
 
+Every file that `render`, `fill` or `pack` fills or writes is recorded, by path and content hash, in a registry inside the vault's directory. The caller must not read it. If the record cannot be made, `render` and `pack` write nothing and exit with code 1, and `fill` reports the file as failed.
+
+`privfill guard` is not for the caller. It is run by the caller's tool before each tool call, with the call as JSON on standard input, and answers through its exit code alone: 0 allows the call, 2 denies it, with a one-line reason on standard error that never contains a path or a value. It denies calls that would read, change, list or search the vault's directory or a recorded output, and allows the commands in the table above. The input format and the decisions are in `docs/guard.md`.
+
 ### 4.1 Exit codes
 
 | Code | Meaning |
@@ -190,7 +194,7 @@ It guarantees that, as long as the caller follows section 5, values do not appea
 
 It does not guarantee:
 
-- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read an output, and can see the item names in the vault. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval.
+- That the caller follows the rules. The program is not a sandbox: a caller that can read files can read an output, and can see the item names in the vault. Combine it with the caller's own permission system (see `docs/claude-code.md`) so that every access needs the person's approval. The `guard` command (`docs/guard.md`) lets that system refuse calls that name the vault's directory or an output; it judges what a call says and cannot stop a caller that hides what it does.
 - Anything about details the person types into the conversation. Those have already been sent.
 - Where outputs go. Outputs are plain text.
 - More than encryption at rest. The vault keeps values from anyone who reads the file without the passphrase. It does not hide item names, and it does not protect against a program that runs as the person while the vault is in use. The boundary is set out in `docs/vault.md`.

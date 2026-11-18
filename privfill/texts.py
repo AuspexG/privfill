@@ -19,13 +19,15 @@ ever contains a value.
   privfill.py pack <archive> <file>...   bundle files into a zip archive
                                          (every path may contain placeholders)
   privfill.py verify                     check the activity log was not altered
+  privfill.py guard                      for a tool hook: read a tool call as JSON on
+                                         standard input; exit 0 to allow, 2 to deny
 
 Put --json before the subcommand for a single JSON object as output.
 Placeholders: {{item}}, {{item|YYYY/MM/DD}}, {{item|last4}}, {{item|first6}}
 
 Exit codes: 0 ok, 1 usage or runtime error, 2 unknown item or bad format,
             3 cancelled by the person, 4 invalid protocol,
-            5 wrong passphrase
+            5 wrong passphrase (guard: only 0 allow, 2 deny)
 
 Command output is in English (it is read by the assistant). The form, which is
 read by the person, follows the system language (English or Chinese); override

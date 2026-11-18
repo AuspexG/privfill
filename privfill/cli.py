@@ -11,10 +11,12 @@ from .activity import ActivityLog
 from .filling import Missing, fill_file, sub
 from .form import run_form
 from .hardening import harden
+from .guard import run as run_guard
 from .normalize import NORMS, Bad
 from .packing import PackError, pack
 from .protocol import FIELD_KEYS, PROTOCOL, PROTOCOL_VERSION, parse_spec
-from .store import StoreError, default_store
+from .registry import FILE_NAME, Registry, RegistryError
+from .store import StoreError, default_store, vault_path
 from .texts import USAGE
 
 EVENTS = []  # (command, items, master hash) of what the running command changed; flushed to the log
@@ -22,7 +24,7 @@ LOG = [None]  # the activity log of the running command, for verify
 RESULT = {}  # structured extras for --json (names and statuses only, never values)
 # Every command. A name that is not here cannot run, and tests/test_no_value_escapes.py refuses a
 # command that has no hostile-input scenarios: add a command in both places.
-COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack", "verify")
+COMMANDS = ("help", "version", "protocol", "init", "keys", "form", "add", "render", "fill", "pack", "verify", "guard")
 FRAGMENT = 4  # this many characters of a value in a row are treated as the value
 ALIASES = {"-h": "help", "--help": "help", "--version": "version"}
 STATUS_TEXT = {"created": "stored", "updated": "updated", "unchanged": "unchanged", "skipped": "left empty"}
@@ -110,11 +112,23 @@ def available(store):
     return "Available items: " + (", ".join(store.names()) or "(none yet)") + "."
 
 
-def run_cmd(argv, store):
+def record_output(registry, path):
+    """Record a file this command filled as an output. False if it could not be recorded."""
+    try:
+        if registry:
+            registry.record(path)
+        return True
+    except (OSError, RegistryError):
+        return False
+
+
+def run_cmd(argv, store, registry=None):
     cmd = ALIASES.get(argv[1], argv[1]) if len(argv) > 1 else "help"
     if cmd not in COMMANDS:
         print("Unknown subcommand. Available: " + ", ".join(c for c in COMMANDS if c not in ("help", "version")) + ".")
         return 1
+    if cmd == "guard":  # main answers a hook before any store is opened; this is for direct calls
+        return guard(registry)
     if cmd == "help":
         print(USAGE)
         return 0
@@ -165,6 +179,11 @@ def run_cmd(argv, store):
                 c = fill_file(path, store)
                 if c:
                     EVENTS.append(("fill", c, before))
+                if c and not record_output(registry, path):
+                    RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": c})
+                    print(f"File {i}: filled {used(c)}, but not registered as an output; the guard does not protect it.")
+                    rc = rc or 1
+                    continue
                 RESULT.setdefault("files", []).append({"index": i, "ok": True, "used": c})
                 print(f"File {i}: " + (f"filled {used(c)}." if c else "no placeholders; left untouched."))
             except Missing as e:
@@ -196,6 +215,8 @@ def run_cmd(argv, store):
             before = digest(src)
             shutil.copy2(src, dst)
             c = fill_file(dst, store)
+            if not record_output(registry, dst):
+                raise RegistryError("not registered")  # an output that cannot be registered is not kept
         except Missing as e:
             os.unlink(dst)
             print(f"Failed: {missing(e, store)}; nothing was written. {available(store)}")
@@ -225,6 +246,10 @@ def run_cmd(argv, store):
             return 2
         try:
             pack(dst, files)
+            if not record_output(registry, dst):
+                os.unlink(dst)
+                print("Failed: the archive could not be registered as an output; nothing was written.")
+                return 1
         except PackError as e:
             print(f"Failed: {e}; nothing was written.")
             return 1
@@ -249,7 +274,7 @@ def log_events(log):
     return 0
 
 
-def run_without_traceback(argv, store, log=None):
+def run_without_traceback(argv, store, log=None, registry=None):
     """run_cmd, with any error it did not expect reduced to its type name.
 
     An exception's message or traceback can quote the data it was handling, so neither is ever
@@ -262,8 +287,10 @@ def run_without_traceback(argv, store, log=None):
         store = default_store() if store is None else store
         if log is None and getattr(store, "directory", None):
             log = ActivityLog(os.path.join(store.directory, "activity.log"))
+        if registry is None and getattr(store, "directory", None):
+            registry = Registry(os.path.join(store.directory, FILE_NAME))
         LOG[0] = log
-        code = run_cmd(argv, store)
+        code = run_cmd(argv, store, registry)
         if log and EVENTS:  # also after a partial failure: what did happen is recorded
             logged = log_events(log)
             code = code or logged
@@ -279,12 +306,21 @@ def run_without_traceback(argv, store, log=None):
         return 1
 
 
-def main(argv, store=None, log=None):
+def guard(registry=None):
+    """Answer a tool hook from standard input. Without a registry, the one beside the default vault."""
+    registry = registry or Registry(os.path.join(os.path.dirname(vault_path()), FILE_NAME))
+    return run_guard(registry, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "privfill.py"))
+
+
+def main(argv, store=None, log=None, registry=None):
     """Run one command. Items are read and written only through store (default: the vault).
 
     The log (default: activity.log beside the store, if the store has a directory) records what changed.
+    Outputs are recorded in registry (default: a file in the store's directory, if it has one).
     """
     harden()  # before anything personal is read
+    if argv[1:] and argv[1:3][-1] == "guard" and argv[1:3][0] in ("guard", "--json"):
+        return guard(registry)  # a hook needs the exit code alone: no store, no passphrase, no --json
     RESULT.clear()
     del EVENTS[:]
     LOG[0] = None
@@ -292,9 +328,9 @@ def main(argv, store=None, log=None):
         argv = argv[:1] + argv[2:]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            code = run_without_traceback(argv, store, log)
+            code = run_without_traceback(argv, store, log, registry)
         out = {"ok": code == 0, "code": code, "message": buf.getvalue().strip()}
         out.update(RESULT)
         print(json.dumps(out, ensure_ascii=False))
         return code
-    return run_without_traceback(argv, store, log)
+    return run_without_traceback(argv, store, log, registry)

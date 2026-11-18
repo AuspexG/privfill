@@ -158,6 +158,17 @@ class World:
         os.unlink(self.data)
         os.mkdir(self.data)
 
+    def outputs_named_by_values(self):
+        """Outputs whose paths hold values, so the output registry holds them too."""
+        for args in (["render", "master.md", "out/{{name}}.md"], ["render", "master.md", "{{email}}.md"]):
+            rc, _, _ = self.run_tool(args)
+            self.case.assertEqual(rc, 0, "rendering a named output failed")
+
+    def registry_is_garbage(self):
+        self.outputs_named_by_values()
+        with open(self.path("store", "outputs.json"), "ab") as f:
+            f.write(b"\xff{" + STORED["phone"].encode("utf8"))
+
     # Ways to break the activity log beside it.
     @property
     def log(self):
@@ -288,6 +299,13 @@ SCENARIOS = {
         scenario("fill", "{{name}}.md"),
         *with_broken_store("fill", "master.md", "no-such-item.md"),
     ],
+    "guard": [
+        scenario("guard"),
+        scenario("guard", "{{name}}"),
+        scenario("guard", before="outputs_named_by_values"),
+        scenario("guard", before="registry_is_garbage"),
+        *with_broken_store("guard"),
+    ],
     "verify": [
         scenario("verify"),
         scenario("verify", "{{name}}"),
@@ -331,7 +349,8 @@ class TestNoValueEscapes(unittest.TestCase):
                 self.assertFalse(leaked, f"{len(leaked)} value fragment(s) in {name} of {where}")
             self.assertNotIn("Traceback", err, f"an exception escaped from {where}")
             self.assertIn(rc, (0, 1, 2, 3, 4, 5), where)
-            if prefix and sc["args"][:1] != ["--json"]:
+            # guard answers through its exit code alone and ignores --json (docs/guard.md)
+            if prefix and sc["args"][:1] not in (["--json"], ["guard"]):
                 try:
                     doc = json.loads(out)
                 except ValueError:

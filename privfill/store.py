@@ -44,7 +44,7 @@ class Store:
     """The interface between the commands and wherever items are kept."""
 
     label = ""  # how the form names the store to the person
-    directory = None  # a protected directory beside the items where the activity log may live, if any
+    directory = None  # the protected directory the store keeps its data in, if it has one; the activity log and the output registry live there
 
     def create(self):
         """Make the store exist, empty, if it does not. Returns True if it was created."""

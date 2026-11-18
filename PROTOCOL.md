@@ -128,6 +128,8 @@ No command prints a value. `privfill` stands for however the program is invoked,
 | `privfill mcp` | Serve `keys`, `form`, `render` and `pack` as Model Context Protocol tools on standard input and output (see `docs/claude-code.md`). Each tool returns its command's `--json` object, with `isError` true when `code` is not 0. No tool takes or returns a value. |
 | `privfill unlock [add\|change\|remove keyring\|passphrase]` | Without arguments, list the unlock methods the vault has and whether a desktop keyring is reachable. With them, add, change or remove a method; the data key is rewrapped and no item is re-encrypted. The last method cannot be removed. See `docs/vault.md`. |
 | `privfill audit [--min-length N] [--window] <path>...` | Look for stored values, in the forms they take in the wild, in the files under the paths and in their names. Prints item names, counts and numbered locations, never a value or a path; `--window` shows the person the paths in a local window. Exit code 6 if anything was found, 0 if not. Values shorter than N characters (default 4) are not searched. See `docs/audit.md`. |
+| `privfill audit --transcripts [<directory>]` | The same over an assistant's session transcripts (`.jsonl`, default `~/.claude/projects`), reported by session number. |
+| `privfill precommit install\|remove [<repository>]` | Install or remove a git pre-commit check that stops a commit whose staged files or file names hold a stored value. See `docs/audit.md`. |
 | `privfill migrate [<old data file>]` | Move the plain-text data file of an earlier version into the vault and verify every item locally; prints counts only. Stops, with exit code 1 and the old file untouched, if an item differs. Deleting the old file is offered in a local dialog. See `docs/vault.md`. |
 | `privfill restore [<version>]` | Without a version, list the vault's backups (version, time saved, item count). With one, put that backup back as a new version; the vault it replaces is kept as a backup. See `docs/vault.md`. |
 | `privfill verify` | Check the activity log (section 8). Exit code 0 if intact, 1 if a record was edited, deleted or reordered. Appends nothing. |
@@ -173,6 +175,7 @@ With `--json` before the subcommand, the output is one JSON object:
 | `verify` | `intact`, `records` |
 | `unlock` | `methods`: the enrolled methods; `keyring_available` when listing |
 | `audit` | `found`: `{item name: count}`; `locations`: a list of `{index, items}`; `scanned`, `skipped` (counts); `too_short` (item names) |
+| `precommit` | `status`: `installed`, `updated`, `chained`, `removed`, `restored` or `absent` |
 | `migrate` | `found`; then `total`, `added`, `present` (counts), `conflicts` (item names), `mismatched` (count), `copies` (paths), `deleted` |
 | `restore` | `backups`: a list of `{version, saved, items}`; or `restored`: the item count |
 

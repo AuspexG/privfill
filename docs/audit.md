@@ -36,3 +36,27 @@ Word, Excel and PowerPoint files are read through the text of their XML parts, s
 - **Other forms.** A value that was abbreviated, translated, transliterated, split across lines with other text in between, or encoded (base64, URL encoding, compressed archives, PDF, images) is not found.
 - **False finds.** Removing separators can join neighbouring numbers into one that happens to equal a stored one. Check a find in the window before acting on it.
 - **It tells you what already happened.** Finding a value in a file the assistant could read means the assistant may already have read it.
+
+## Assistant transcripts
+
+```
+privfill.py audit --transcripts                 Claude Code's transcripts, ~/.claude/projects
+privfill.py audit --transcripts <directory>     any other directory of .jsonl transcripts
+```
+
+Only `.jsonl` files are read, each one a session, and finds are reported by session number. JSON strings are decoded first, so a value stored as `张...` escapes is found too. `--window` shows which file each number is.
+
+A transcript records what was already sent to the model provider. A find there cannot be undone by deleting the local file; it tells you which detail left the machine, so you can judge what follows (changing a password, say, or telling someone).
+
+## Git pre-commit check
+
+```
+privfill.py precommit install [<repository>]    default: the current directory
+privfill.py precommit remove [<repository>]
+```
+
+The check is a short shell script in the repository's hooks directory (`core.hooksPath` if set). Before each commit git copies the staged version of every added, changed or renamed file into a temporary directory, and `privfill audit` scans it, file names included. If a stored value is found, the commit is stopped and the item names and counts are shown; values and paths are not. A hook that was already there is set aside, runs first on every commit, and is put back by `remove`.
+
+Each commit unlocks the vault: instantly with the keyring, with the passphrase dialog otherwise. A clean commit takes well under a second. `git commit --no-verify` skips the check, as it skips every hook.
+
+Limits: only the staged files are scanned, not the commit message, and not what earlier commits already contain (run `audit` on the working tree for that). The check runs on the machine where it was installed; it does not travel with the repository.

@@ -360,7 +360,17 @@ SCENARIOS = {
         scenario("audit", "filled-twice.md", "value-as-name.json", "bad-xml.docx", "not-utf8.md", "locked"),
         scenario("audit", "Qwyzbek Vorplux.md"),
         scenario("audit", ".", before="old_data_file"),
+        scenario("audit", "--transcripts", "."),
+        scenario("audit", "--transcripts"),
         *with_broken_store("audit", "."),
+    ],
+    "precommit": [
+        scenario("precommit"),
+        scenario("precommit", "install"),
+        scenario("precommit", "install", "{{name}}"),
+        scenario("precommit", "remove", "Qwyzbek Vorplux"),
+        scenario("precommit", "{{name}}"),
+        scenario("precommit", "install", "locked"),
     ],
     "migrate": [
         scenario("migrate"),

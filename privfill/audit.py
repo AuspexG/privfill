@@ -109,6 +109,37 @@ def office_text(path):
     return text
 
 
+def json_strings(raw):
+    """Every string (keys included) in a JSON or JSON Lines document, unescaped; None if it is neither.
+    Transcripts store text as JSON strings, where non-ASCII characters may be written as \\uXXXX."""
+    import json
+
+    out = []
+
+    def collect(node):
+        if isinstance(node, str):
+            out.append(node)
+        elif isinstance(node, dict):
+            for k, v in node.items():
+                out.append(k)
+                collect(v)
+        elif isinstance(node, list):
+            for v in node:
+                collect(v)
+
+    text = raw.decode("utf8", "replace")
+    try:
+        collect(json.loads(text))
+    except ValueError:
+        try:
+            for line in text.splitlines():
+                if line.strip():
+                    collect(json.loads(line))
+        except ValueError:
+            return None
+    return "\n".join(out)
+
+
 def file_text(path):
     """The text of a file, or None if it is binary, too big or unreadable."""
     try:
@@ -125,6 +156,10 @@ def file_text(path):
             return raw.decode(codec, "replace")
     if b"\x00" in raw[:8192]:
         return None
+    if path.lower().endswith((".json", ".jsonl", ".ipynb")):
+        strings = json_strings(raw)
+        if strings is not None:
+            return strings
     return raw.decode("utf8", "replace")
 
 
@@ -133,8 +168,9 @@ def views(text):
     return folded, compact(folded)
 
 
-def walk(paths):
-    """Every file under the given paths, in a stable order. Unreadable directories are passed over."""
+def walk(paths, suffix=None):
+    """Every file under the given paths (only those ending in suffix, if given), in a stable order.
+    Unreadable directories are passed over."""
     for p in paths:
         if os.path.isfile(p):
             yield p
@@ -142,17 +178,18 @@ def walk(paths):
             for root, dirs, files in os.walk(p):
                 dirs[:] = sorted(d for d in dirs if d not in SKIP_DIRS)
                 for f in sorted(files):
-                    yield os.path.join(root, f)
+                    if suffix is None or f.endswith(suffix):
+                        yield os.path.join(root, f)
 
 
-def audit(paths, store, min_length=MIN_LENGTH, skip=()):
+def audit(paths, store, min_length=MIN_LENGTH, skip=(), suffix=None):
     """Scan the paths. Returns a dict: locations [(path, {item: count})] of files with a find (paths
     stay with the caller of this function, never printed), totals {item: count}, scanned, skipped
     (binary, too big or unreadable), short (items not searched)."""
     found, short = needles(store, min_length)
     skip = {os.path.realpath(s) for s in skip}
     locations, totals, scanned, skipped = [], {}, 0, 0
-    for path in walk(paths):
+    for path in walk(paths, suffix):
         if os.path.realpath(path) in skip:
             continue
         text = file_text(path)

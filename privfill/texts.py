@@ -27,6 +27,11 @@ ever contains a value.
   privfill.py audit [--min-length N] [--window] <path>...
                                          look for stored values in files; reports item
                                          names, counts and numbered locations only
+  privfill.py audit --transcripts [<dir>] the same for an assistant's session transcripts
+                                         (default ~/.claude/projects), reported by session
+  privfill.py precommit install|remove [<repo>]
+                                         a git pre-commit check that stops commits whose
+                                         staged files hold a stored value
   privfill.py migrate [<old file>]       move a plain-text data file of an earlier
                                          version into the vault
   privfill.py unlock [add|change|remove] [keyring|passphrase]

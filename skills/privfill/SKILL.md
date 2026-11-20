@@ -37,6 +37,8 @@ Below it is written as `privfill`. If that path does not exist, ask the user whe
 
 To change a delivered file later, edit the master and render again. Keep the master.
 
+Placeholders are filled in text files, Word, Excel and PowerPoint files, notebooks and JSON, and in the form fields of a PDF: set a field's value to the placeholder in the master (text printed on a PDF page is not filled). Any other file, such as an image, is copied unchanged by `render`, so it can still be given a name with placeholders.
+
 Placeholders take an optional format, so the user never has to enter the same detail twice in different shapes:
 
 | Placeholder | Result |

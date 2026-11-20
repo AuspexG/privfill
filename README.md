@@ -21,7 +21,7 @@ The assistant sees item names, counts and exit codes. It does not see values.
 
 ## Install
 
-Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora), and `secretstorage` (`python-secretstorage`, `python3-secretstorage`) for unlocking by the desktop keyring; without it a passphrase is used. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise.
+Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora), and `secretstorage` (`python-secretstorage`, `python3-secretstorage`) for unlocking by the desktop keyring; without it a passphrase is used. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise. Filling PDF forms needs `pypdf` (`python-pypdf` on Arch, `python3-pypdf` on Debian and Ubuntu); everything else works without it.
 
 ```
 git clone https://github.com/AuspexG/privfill.git
@@ -150,6 +150,7 @@ privfill keeps values out of everything the assistant sends and receives, **prov
 | `manager_ui.py` | the manager window (PyQt6) and its off-screen test hook |
 | `form.py` | the entry form and the passphrase dialog (PyQt6, with a Tk fallback) |
 | `filling.py` | placeholders, formats and the file types they are filled in |
+| `pdfform.py` | placeholders in the fields of a PDF form (needs `pypdf`) |
 | `texts.py` | the usage text and the form's strings in each language |
 | `packing.py` | bundling files into a zip archive |
 | `activity.py` | the value-free, hash-chained activity log |
@@ -167,7 +168,7 @@ Commands reach items only through a `Store`, so another way of keeping them need
 python3 -m unittest discover -s tests
 ```
 
-The tests need the `cryptography` library. They use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`. `tests/test_no_value_escapes.py` feeds every command hostile input and checks that no fragment of a value is printed; a new command must be listed in `COMMANDS` in `privfill/cli.py` and given scenarios in that test file, or the suite fails.
+The tests need the `cryptography` library; the PDF tests are skipped where `pypdf` is missing. They use fake data in a temporary directory and never open a window. `tests/test_store_seam.py` runs the commands against an in-memory `Store`. `tests/test_no_value_escapes.py` feeds every command hostile input and checks that no fragment of a value is printed; a new command must be listed in `COMMANDS` in `privfill/cli.py` and given scenarios in that test file, or the suite fails.
 
 ## License
 

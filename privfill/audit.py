@@ -147,6 +147,12 @@ def file_text(path):
             return None
         if path.lower().endswith(OFFICE) and zipfile.is_zipfile(path):
             return office_text(path)
+        if path.lower().endswith(".pdf"):
+            from .pdfform import field_text
+
+            text = field_text(path)  # form field values; the page text itself is not read
+            if text is not None:
+                return text
         with open(path, "rb") as f:
             raw = f.read()
     except (OSError, zipfile.BadZipFile, KeyError, RuntimeError):

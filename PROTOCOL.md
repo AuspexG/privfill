@@ -119,7 +119,8 @@ A format that does not apply to the item fails with exit code 2.
 |---|---|
 | `.docx`, `.xlsx`, `.pptx` | Placeholders are found in the visible text of each paragraph (Word, including headers, footers and text boxes), each cell string or comment (Excel) and each text paragraph (PowerPoint), so a placeholder may be split over several text runs; the value takes the formatting of the run where the placeholder begins. A placeholder never spans two paragraphs. Elsewhere in the `.xml` and `.rels` parts (link targets, document properties) placeholders are substituted as plain text. Values are XML-escaped, and characters that XML cannot carry at all (most control characters) are left out; images and other binary parts, and parts without placeholders, are untouched. |
 | `.ipynb`, `.json` | Parsed, every string substituted, written back. |
-| anything else | Substituted as UTF-8 text. |
+| `.pdf` | Placeholders are filled in the values of form fields (`/V`, and the default `/DV`); text printed on the page is not touched. A filled field loses its old appearance and the form is marked `NeedAppearances`, so the PDF reader draws the value in a font that has its characters; a reader that ignores the flag shows that field empty until it is clicked. An encrypted PDF is refused. Needs the `pypdf` library (`python-pypdf` on Arch); without it a PDF fails with a message saying so, and nothing else is affected. A PDF without placeholders in its fields is copied unchanged. |
+| anything else | Substituted as UTF-8 text. A file that is not UTF-8 (an image, an archive) is copied unchanged, so `render` can still give it a name; one that is not UTF-8 but seems to hold a placeholder is refused rather than copied unfilled. |
 | file names | The output path of `render` and every path given to `pack` may contain placeholders. |
 
 ## 4. Commands

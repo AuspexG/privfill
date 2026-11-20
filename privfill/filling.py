@@ -10,6 +10,10 @@ PH = re.compile(r"\{\{\s*([^{}\s][^{}]*?)\s*\}\}")
 OFFICE = (".docx", ".xlsx", ".pptx")
 
 
+class Unsupported(Exception):
+    """A file privfill cannot fill. The message is fixed text and never holds a value or a file's content."""
+
+
 class Missing(Exception):
     """A placeholder names an item the store does not have, or a format that does not apply.
 
@@ -172,6 +176,12 @@ def fill_file(path, store):
             with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zout:
                 for info, raw in out:
                     zout.writestr(info, raw, compress_type=zipfile.ZIP_DEFLATED)
+    elif low.endswith(".pdf"):
+        from .pdfform import fill as fill_pdf
+
+        w = fill_pdf(path, store, counter)
+        if w is None:
+            return counter
     elif low.endswith((".ipynb", ".json")):
         with open(path, encoding="utf8") as f:
             obj = walk(json.load(f), store, counter)
@@ -181,8 +191,19 @@ def fill_file(path, store):
                 json.dump(obj, f, ensure_ascii=False, indent=1)
                 f.write("\n")
     else:
-        with open(path, encoding="utf8") as f:
-            text = sub(f.read(), store, counter=counter)
+        with open(path, "rb") as f:
+            raw = f.read()
+        try:
+            text = raw.decode("utf8")
+        except UnicodeDecodeError:
+            # Not text: an image, an archive, a font. It is left as it is,
+            # so render still gives it a name. One that seems to hold a placeholder is refused
+            # rather than passed on unfilled.
+            if PH.search(raw.decode("latin-1")):
+                raise Unsupported("the file is not UTF-8 text, but seems to hold a placeholder; "
+                                  "privfill fills text, Office, notebook, JSON and PDF form files.") from None
+            return counter
+        text = sub(text.replace("\r\n", "\n").replace("\r", "\n"), store, counter=counter)  # as a text-mode read
 
         def w(tmp):
             with open(tmp, "w", encoding="utf8") as f:

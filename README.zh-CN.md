@@ -10,7 +10,9 @@
 |---|---|---|
 | `form.docx` 里写 `{{姓名}}` 和 `{{手机号\|last4}}` | "姓名 x1，手机号 x1" | 填好你真实姓名和手机号后四位的 `form.docx` |
 
-<p align="center"><img src="docs/form-zh.png" width="440" alt="录入表单：分组的字段和大白话的填写提示"></p>
+<p align="center"><img src="docs/demo-zh.gif" width="720" alt="演示：助手请求填表；你在本机窗口里填写姓名和手机号；助手只得到条目名；助手写占位符，privfill 填入内容；你打开成品"></p>
+
+<sub>用的是临时保险库里的虚构数据。表单是真实界面，每一行输出都是程序实际打印的（<code>tools/demo/make.sh</code>）。</sub>
 
 - **内容不进对话。** 新信息由你在屏幕上的本地表单里填写，每条命令只报告项目名和计数。
 - **处理真实文件，不只是纯文本。** 能填 Word、Excel、PowerPoint、Jupyter notebook、JSON、纯文本和 PDF 表单字段，文件名和 zip 压缩包名里也能用占位符。

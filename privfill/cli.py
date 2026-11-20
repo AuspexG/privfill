@@ -177,14 +177,15 @@ def cmd_migrate(args, store):
         return 1
     program_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     old = os.path.abspath(args[0]) if args else find_old_file(program_dir)
+    # Refused before anything else, so a test run learns nothing about that directory, not even whether a file exists.
+    if old and off_limits(old):
+        print("Failed: a test run may not read the person's own data directory.")
+        return 1
     if not old or not os.path.isfile(old):
         print("No plain-text data file was found; there is nothing to migrate." if not args
               else "Failed: that file does not exist.")
         RESULT.update(found=False)
         return 0 if not args else 1
-    if off_limits(old):
-        print("Failed: a test run may not read the person's own data directory.")
-        return 1
     if os.path.abspath(old) == os.path.abspath(getattr(store, "path", "")):
         print("Failed: that is the vault itself.")
         return 1

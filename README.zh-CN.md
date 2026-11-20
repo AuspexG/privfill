@@ -2,11 +2,24 @@
 
 [English](README.md) · **简体中文**
 
-让 AI 助手用上你的个人信息，却看不到它。
+**让 AI 助手替你填上姓名、证件号、手机号，而它自己始终看不到这些内容。**
 
-让助手替你填表，它就需要你的姓名、证件号、手机号。它一旦读到这些内容，内容就会作为对话的一部分发送给模型提供方。privfill 把这些信息留在本机：助手只写 `{{占位符}}`，由本机的一个小程序填入真实内容，助手得到的回报只有"填入 3 项"。
+让 Claude Code 这类编程助手替你填报名表，它就得读到你的个人信息，而读到的内容会作为对话的一部分发送给模型提供方。用了 privfill，助手只写占位符，由本机程序填入真实内容。助手只会知道填了哪几项，不会知道填的是什么。
+
+| 助手写的 | 助手得到的回报 | 你拿到的 |
+|---|---|---|
+| `form.docx` 里写 `{{姓名}}` 和 `{{手机号\|last4}}` | "姓名 x1，手机号 x1" | 填好你真实姓名和手机号后四位的 `form.docx` |
 
 <p align="center"><img src="docs/form-zh.png" width="440" alt="录入表单：分组的字段和大白话的填写提示"></p>
+
+- **内容不进对话。** 新信息由你在屏幕上的本地表单里填写，每条命令只报告项目名和计数。
+- **处理真实文件，不只是纯文本。** 能填 Word、Excel、PowerPoint、Jupyter notebook、JSON、纯文本和 PDF 表单字段，文件名和 zip 压缩包名里也能用占位符。
+- **强制执行，不只是口头约定。** 在 Claude Code 里，工具钩子会拒绝任何会碰到保险库或成品文件的工具调用（[docs/guard.md](docs/guard.md)）。
+- **加密存储。** 保险库由桌面密钥环解锁，或者由你在本地窗口里输入的口令解锁。
+- **泄露检查。** `audit` 在文件和助手的会话记录里查找你存过的内容，git pre-commit 钩子会拦下含有这些内容的提交。
+- **不绑定某一个助手。** `privfill.py mcp` 以 MCP 服务器的形式提供同样的工具。
+
+平台：在 Linux 上开发和测试。macOS 未测试：密钥环解锁用的是 Linux 的 Secret Service，所以在 macOS 上会改用口令。暂不支持 Windows。
 
 ## 工作方式
 
@@ -21,16 +34,39 @@
 
 ## 安装
 
-需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`），以及用于桌面密钥环解锁的 `secretstorage`（`python-secretstorage`、`python3-secretstorage`）；没有它时改用口令。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。填写 PDF 表单需要 `pypdf`（Arch 上是 `python-pypdf`，Debian、Ubuntu 上是 `python3-pypdf`），其余功能都不需要它。
+在 Linux 上分两步，需要 Python 3.8 以上。
+
+**1. 系统包。** 用系统包管理器安装，不要用 pip：
+
+```
+# Arch
+sudo pacman -S python-cryptography python-secretstorage python-pyqt6 python-pypdf
+# Debian、Ubuntu
+sudo apt install python3-cryptography python3-secretstorage python3-pyqt6 python3-pypdf
+# Fedora
+sudo dnf install python3-cryptography python3-secretstorage
+```
+
+| 包 | 用途 | 没有它时 |
+|---|---|---|
+| `cryptography` | 加密保险库 | 必需 |
+| `secretstorage` | 用桌面密钥环解锁 | 在本地窗口里输入口令 |
+| PyQt6 | 录入表单 | 改用较简陋的 Tk 表单 |
+| `pypdf` | PDF 表单字段 | 其他格式照常可用 |
+
+**2. 安装 privfill（Claude Code 用户）：**
 
 ```
 git clone https://github.com/AuspexG/privfill.git
 cd privfill
-./install.sh            # 程序放在 ~/.privfill，保险库在第一次使用时创建在那里
-./install.sh --skill    # 同时安装 Claude Code skill
+./install.sh --skill --claude
 ```
 
-然后把规则交给你的助手，见 [AGENT_GUIDE.md](AGENT_GUIDE.md)（英文）。Claude Code 用户再按 [docs/zh-CN/claude-code.md](docs/zh-CN/claude-code.md) 加上权限规则。
+这一步会把程序放进 `~/.privfill`（保险库在你第一次录入信息时创建在那里），安装 Claude Code skill，并把防护配置写进 `~/.claude/settings.json`。然后开一个新的 Claude Code 会话，试着说 *"记一下我的手机号"*，屏幕上就会弹出表单。
+
+- 撤销对设置的修改：`./install.sh --claude-remove`。详见 [docs/zh-CN/claude-code.md](docs/zh-CN/claude-code.md)。
+- 把防护配置放到助手改不了的位置：`tools/managed-settings-wizard.sh`（[docs/managed-settings.md](docs/managed-settings.md)，英文）。
+- 其他助手：只运行 `./install.sh`，再把 [AGENT_GUIDE.md](AGENT_GUIDE.md)（英文）里的规则交给助手。
 
 ## 一次使用，从你这边看
 
@@ -119,12 +155,24 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 
 ## 它保护什么，不保护什么
 
-**在助手遵守规则的前提下**，privfill 让个人信息的内容不出现在助手发出和收到的任何东西里。它是一套约定加一个工具，不是沙箱。
+privfill 自身的保证针对的是它的输出：任何命令都不会打印内容，所以助手从 privfill 得到的东西里不会有你的个人信息。在此之外，还有几层防护阻止助手通过别的途径拿到内容。没有哪一层单独构成沙箱，每一层都把剩下的空隙再缩小一些。
 
-- 助手只要有读文件的能力，就读得到填好的成品，也看得到保险库里各项的名称。请配合你所用工具的权限机制，让每次访问都需要你批准；Claude Code 里只要三行设置。
+| 防护层 | 拦住什么 | 怎么启用 |
+|---|---|---|
+| 规则（skill，或 [AGENT_GUIDE.md](AGENT_GUIDE.md)） | 守规矩的助手向你索要、读取或记下个人信息 | `./install.sh --skill` |
+| 拒绝规则和防护钩子 | Claude Code 的工具碰到保险库、成品文件或桌面密钥环，包括 shell 命令（[docs/guard.md](docs/guard.md)，英文） | `./install.sh --claude` |
+| Bash 沙箱（可选） | shell 读取数据目录，由操作系统拦截 | `./install.sh --claude-sandbox` |
+| 托管设置（可选） | 助手削弱自己的规则：规则放在只有 root 能改的文件里（[docs/managed-settings.md](docs/managed-settings.md)，英文） | `tools/managed-settings-wizard.sh` |
+| 本地确认 | 未经你同意就使用高敏感项（例如证件号）：会先弹出本地窗口问你 | 自动 |
+| 加密保险库 | 拿到文件却没有密钥的人：只能看到项目名，看不到内容 | 自动 |
+
+仍然防不住的：
+
+- 防护钩子判断的是工具调用写了什么，而不是程序运行后做了什么。自己去打开文件的脚本、经过编码的命令，它都看不到；沙箱能为 shell 命令补上一部分。完整列表见 [docs/guard.md](docs/guard.md#limits)（英文）。
+- 保险库能被解锁时，以你的身份运行的程序也能解锁它。用密钥环解锁时，它直接向密钥环要密钥就行；如果不能接受，就只用口令（先 `privfill.py unlock add passphrase`，再 `privfill.py unlock remove keyring`）。程序自身会关闭核心转储，并在 Linux 上阻止其他进程附加到它。
 - 你在对话里直接说出的内容已经发送出去了。请用表单录入。
-- 填好的成品是普通文件，里面是明文。它之后去哪里由你决定。
-- 个人信息保存在加密的保险库里，由桌面密钥环（你什么都不用输入）或你在本机窗口里输入的口令解锁；`privfill.py unlock` 可以切换。拿到文件却没有密钥的人只能看到项目名，看不到内容。它防不了在保险库可被解锁时以你的身份运行的程序；所有解锁方式都丢失后无法找回。文件格式和完整的保护边界见 [docs/vault.md](docs/vault.md)（英文）。
+- 填好的成品是普通文件，里面是明文。它之后去哪里由你决定；`audit` 和 pre-commit 钩子能帮你发现它出现在不该出现的地方。
+- 所有解锁方式都丢失后，内容无法找回。文件格式、备份和完整的保护边界见 [docs/vault.md](docs/vault.md)（英文）。
 - 早期版本留下的明文 `profile.md` 在运行 `privfill.py migrate` 之前仍是明文（见 [docs/vault.md](docs/vault.md#upgrading-from-the-plain-text-data-file)）。
 - `id_card` 类型只校验中国大陆居民身份证号。其他证件请用 `text` 加 `pattern`。
 

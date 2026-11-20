@@ -2,11 +2,24 @@
 
 **English** · [简体中文](README.zh-CN.md)
 
-Let an AI assistant use your personal details without ever seeing them.
+**Let an AI assistant fill in your name, ID number and phone number without ever seeing them.**
 
-An assistant that fills in a form for you needs your name, ID number and phone number. If it reads them, they are sent to the model provider as part of the conversation. privfill keeps them on your machine: the assistant writes `{{placeholders}}`, and a small local program puts in the real values and reports back only "filled 3 items".
+Ask a coding assistant such as Claude Code to fill in a registration form, and it has to read your details, which sends them to the model provider as part of the conversation. With privfill the assistant only writes placeholders. A local program puts in the real values and tells the assistant what it filled, never what the values were.
+
+| The assistant writes | The assistant is told | You get |
+|---|---|---|
+| `{{full name}}` and `{{phone\|last4}}` in `form.docx` | "filled full name x1, phone x1" | `form.docx` with your real name and the last four digits of your phone number |
 
 <p align="center"><img src="docs/form-en.png" width="440" alt="The entry form: grouped fields with plain-language hints"></p>
+
+- **Values never enter the chat.** You type new details into a local form on your screen. Every command reports item names and counts only.
+- **Real files, not just text.** It fills Word, Excel, PowerPoint, Jupyter notebooks, JSON, plain text and PDF form fields, and placeholders also work in file names and zip archive names.
+- **Enforced, not just requested.** In Claude Code, a tool hook denies any tool call that would reach the vault or a filled output ([docs/guard.md](docs/guard.md)).
+- **Encrypted at rest.** The vault is unlocked by the desktop keyring or a passphrase you type into a local window.
+- **Leak checks.** `audit` looks for your stored values in files and in assistant session transcripts, and a git pre-commit hook stops commits that contain them.
+- **Not tied to one assistant.** `privfill.py mcp` serves the same tools as an MCP server.
+
+Platforms: developed and tested on Linux. macOS is untested: the keyring unlock uses the Linux Secret Service, so a passphrase would be used there. Windows is not supported yet.
 
 ## How it works
 
@@ -21,16 +34,39 @@ The assistant sees item names, counts and exit codes. It does not see values.
 
 ## Install
 
-Requires Python 3.8 or later and the `cryptography` library from the system package manager (`python-cryptography` on Arch, `python3-cryptography` on Debian, Ubuntu and Fedora), and `secretstorage` (`python-secretstorage`, `python3-secretstorage`) for unlocking by the desktop keyring; without it a passphrase is used. The form uses PyQt6 when it is available and falls back to a plain Tk form otherwise. Filling PDF forms needs `pypdf` (`python-pypdf` on Arch, `python3-pypdf` on Debian and Ubuntu); everything else works without it.
+Two steps on Linux, with Python 3.8 or later.
+
+**1. System packages.** Install them with the system package manager, not pip:
+
+```
+# Arch
+sudo pacman -S python-cryptography python-secretstorage python-pyqt6 python-pypdf
+# Debian, Ubuntu
+sudo apt install python3-cryptography python3-secretstorage python3-pyqt6 python3-pypdf
+# Fedora
+sudo dnf install python3-cryptography python3-secretstorage
+```
+
+| Package | Used for | Without it |
+|---|---|---|
+| `cryptography` | the encrypted vault | required |
+| `secretstorage` | unlocking by the desktop keyring | you type a passphrase into a local window |
+| PyQt6 | the entry form | a plainer Tk form |
+| `pypdf` | PDF form fields | every other format still works |
+
+**2. privfill, for Claude Code:**
 
 ```
 git clone https://github.com/AuspexG/privfill.git
 cd privfill
-./install.sh            # program in ~/.privfill; the vault is created there on first use
-./install.sh --skill    # also install the Claude Code skill
+./install.sh --skill --claude
 ```
 
-Then give your assistant the rules, described in [AGENT_GUIDE.md](AGENT_GUIDE.md), and for Claude Code add the permission rules in [docs/claude-code.md](docs/claude-code.md).
+This puts the program in `~/.privfill` (the vault is created there the first time you enter a detail), installs the Claude Code skill and adds the guard to `~/.claude/settings.json`. Start a new Claude Code session and try *"store my phone number"*. A form appears on your screen.
+
+- Undo the settings change: `./install.sh --claude-remove`. Details: [docs/claude-code.md](docs/claude-code.md).
+- Keep the guard where the assistant cannot change it: `tools/managed-settings-wizard.sh` ([docs/managed-settings.md](docs/managed-settings.md)).
+- Other assistants: run `./install.sh` alone, then give the assistant the rules in [AGENT_GUIDE.md](AGENT_GUIDE.md).
 
 ## A session, from your side
 
@@ -121,12 +157,24 @@ Keeping the assistant-facing text in one language means there is one set of rule
 
 ## What it protects, and what it does not
 
-privfill keeps values out of everything the assistant sends and receives, **provided the assistant follows the rules**. It is a convention plus a tool, not a sandbox.
+privfill's own guarantee is about its output: no command prints a value, so nothing the assistant gets back from privfill contains one. Around that, several layers stop the assistant from reaching a value some other way. No single layer is a sandbox; each one narrows what is left.
 
-- An assistant that can read files could read a filled output, and could see the names of your items in the vault. Use your tool's permission system so that every access needs your approval; for Claude Code this takes three lines of settings.
+| Layer | What it stops | Set up by |
+|---|---|---|
+| Rules (the skill, or [AGENT_GUIDE.md](AGENT_GUIDE.md)) | A cooperative assistant asking for, reading or storing your details | `./install.sh --skill` |
+| Deny rules and the guard hook | Claude Code's tools reaching the vault, a filled output or the desktop keyring, shell commands included ([docs/guard.md](docs/guard.md)) | `./install.sh --claude` |
+| Bash sandbox (optional) | Shell reads of the data directory, stopped by the operating system | `./install.sh --claude-sandbox` |
+| Managed settings (optional) | The assistant weakening its own rules: they live in a file only root can change ([docs/managed-settings.md](docs/managed-settings.md)) | `tools/managed-settings-wizard.sh` |
+| Local confirmation | A high-sensitivity item, such as an ID number, being used without your say: a local window asks you first | automatic |
+| Encrypted vault | Someone who gets the file without the key: they learn item names, not values | automatic |
+
+What is left:
+
+- The guard judges what a tool call says, not what a program does once it runs. A script that opens files on its own, or an encoded command, is not seen; the sandbox closes part of that gap for shell commands. The full list is in [docs/guard.md](docs/guard.md#limits).
+- While the vault can be unlocked, a program running as you can unlock it too. With the keyring it can simply ask the keyring for the key; if that is not acceptable, use a passphrase only (`privfill.py unlock add passphrase`, then `privfill.py unlock remove keyring`). The program itself turns off core dumps and, on Linux, stops other processes from attaching to it.
 - Anything you type into the chat has already been sent. Use the form.
-- Filled outputs are ordinary files with your details in them. Where they go next is up to you.
-- Your details are stored in an encrypted vault, unlocked by the desktop keyring (you type nothing) or by a passphrase you type into a local window; `privfill.py unlock` switches. Someone who gets the file without the key learns the item names, not the values. It does not protect against a program running as you while the vault can be unlocked, and if every unlock method is lost the values cannot be recovered. The format, backups and the full boundary are in [docs/vault.md](docs/vault.md).
+- Filled outputs are ordinary files with your details in them. Where they go next is up to you; `audit` and the pre-commit hook help you find them where they should not be.
+- If every unlock method is lost, the values cannot be recovered. The format, backups and the full boundary are in [docs/vault.md](docs/vault.md).
 - A plain-text `profile.md` from an earlier version stays in plain text until you run `privfill.py migrate` ([docs/vault.md](docs/vault.md#upgrading-from-the-plain-text-data-file)).
 - The `id_card` type validates PRC resident ID numbers only. Use `text` with a `pattern` for other documents.
 

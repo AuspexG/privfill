@@ -10,7 +10,9 @@ Ask a coding assistant such as Claude Code to fill in a registration form, and i
 |---|---|---|
 | `{{full name}}` and `{{phone\|last4}}` in `form.docx` | "filled full name x1, phone x1" | `form.docx` with your real name and the last four digits of your phone number |
 
-<p align="center"><img src="docs/form-en.png" width="440" alt="The entry form: grouped fields with plain-language hints"></p>
+<p align="center"><img src="docs/demo-en.gif" width="720" alt="Demo: the assistant asks for a form; you type a name and phone number into a local window; the assistant is told only the item names; it writes placeholders and privfill fills them in; you open the result"></p>
+
+<sub>Made-up data in a throwaway vault. The form is the real one, and every line of output is what the program printed (<code>tools/demo/make.sh</code>).</sub>
 
 - **Values never enter the chat.** You type new details into a local form on your screen. Every command reports item names and counts only.
 - **Real files, not just text.** It fills Word, Excel, PowerPoint, Jupyter notebooks, JSON, plain text and PDF form fields, and placeholders also work in file names and zip archive names.

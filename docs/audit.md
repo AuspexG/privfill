@@ -28,7 +28,7 @@ Every file and every file name is looked at in three normalized forms:
 
 Dates (items of type `date`) are matched by a pattern over their written forms instead: `2005-03-04`, `2005/3/4`, `2005年3月4日`, `4.3.2005`, `03/04/2005`, `20050304`, `March 4, 2005`, `4 Mar 2005`. Digits right before or after break a match, so `120050304` or `2005-03-14` are not reported.
 
-Word, Excel and PowerPoint files are read through the text of their XML parts, so a value split across formatting runs is still found. Other files are read as UTF-8 (or UTF-16 with a byte-order mark). A file with a NUL byte near its start is treated as binary and skipped; so are files over 50 MB and the directories `.git`, `.hg`, `.svn`, `node_modules`, `__pycache__`, `.venv` and `venv`. The vault itself is never reported.
+Word, Excel and PowerPoint files are read through the text of their XML parts, so a value split across formatting runs is still found. In a PDF the values of its form fields are read (where `pypdf` is installed); the text printed on its pages is not. Other files are read as UTF-8 (or UTF-16 with a byte-order mark). A file with a NUL byte near its start is treated as binary and skipped; so are files over 50 MB and the directories `.git`, `.hg`, `.svn`, `node_modules`, `__pycache__`, `.venv` and `venv`. The vault itself is never reported.
 
 ## Limits
 

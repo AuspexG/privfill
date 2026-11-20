@@ -8,7 +8,7 @@ import shutil
 
 from . import __version__
 from .activity import ActivityLog
-from .filling import Missing, fill_file, sub
+from .filling import Missing, Unsupported, fill_file, sub
 from .form import run_form
 from .hardening import harden
 from .guard import run as run_guard
@@ -442,6 +442,10 @@ def run_cmd(argv, store, registry=None):
                 rc = 2
             except StoreError:
                 raise
+            except Unsupported as e:  # fixed text, never a value
+                RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
+                print(f"File {i}: failed, {e} Left untouched.")
+                rc = rc or 1
             except Exception as e:
                 RESULT.setdefault("files", []).append({"index": i, "ok": False, "used": {}})
                 print(f"File {i}: failed ({type(e).__name__}); left untouched.")
@@ -480,6 +484,9 @@ def run_cmd(argv, store, registry=None):
                 os.unlink(dst)
             if isinstance(e, StoreError):
                 raise
+            if isinstance(e, Unsupported):  # fixed text, never a value
+                print(f"Failed: {e} Nothing was written.")
+                return 1
             print(f"Failed ({type(e).__name__}); nothing was written.")
             return 1
         for k, n in c.items():

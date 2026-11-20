@@ -21,7 +21,7 @@
 
 ## 安装
 
-需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`），以及用于桌面密钥环解锁的 `secretstorage`（`python-secretstorage`、`python3-secretstorage`）；没有它时改用口令。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。
+需要 Python 3.8 以上，以及用系统包管理器安装的 `cryptography` 库（Arch 上是 `python-cryptography`，Debian、Ubuntu、Fedora 上是 `python3-cryptography`），以及用于桌面密钥环解锁的 `secretstorage`（`python-secretstorage`、`python3-secretstorage`）；没有它时改用口令。表单界面优先使用 PyQt6，没有时退回到较简陋的 Tk 界面。填写 PDF 表单需要 `pypdf`（Arch 上是 `python-pypdf`，Debian、Ubuntu 上是 `python3-pypdf`），其余功能都不需要它。
 
 ```
 git clone https://github.com/AuspexG/privfill.git
@@ -148,6 +148,7 @@ privfill.py mcp                        作为 MCP 服务提供这些工具（标
 | `manager_ui.py` | 管理窗口（PyQt6）及其离屏测试钩子 |
 | `form.py` | 录入表单和口令窗口（PyQt6，没有时退回 Tk） |
 | `filling.py` | 占位符、格式和各种文件类型的填充 |
+| `pdfform.py` | PDF 表单字段中的占位符（需要 `pypdf`） |
 | `texts.py` | 用法说明和表单各语言的文字 |
 | `packing.py` | 把文件打包成 zip |
 | `activity.py` | 不含任何值、哈希链式的操作日志 |
